@@ -26,7 +26,8 @@ gcloud services enable \
   secretmanager.googleapis.com \
   artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
-  iamcredentials.googleapis.com
+  iamcredentials.googleapis.com \
+  firebasehosting.googleapis.com
 
 echo "── Dépôt Artifact Registry…"
 gcloud artifacts repositories describe fataawa --location="$REGION" >/dev/null 2>&1 ||

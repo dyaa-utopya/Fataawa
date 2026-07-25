@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "fataawa",
     "public": "apps/front/dist",
     "ignore": ["**/.*"],
     "rewrites": [

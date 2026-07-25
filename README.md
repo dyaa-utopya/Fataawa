@@ -57,7 +57,25 @@ Worker ou API en local (avec un compte ayant les accès GCP) : `cp .env.example 
 remplir, puis `npm run build && node --env-file=.env apps/worker/dist/server.js`
 (ou `apps/api/dist/server.js`).
 
-## Déploiement (ordre complet)
+## Déploiement en une commande (recommandé)
+
+Depuis **Cloud Shell** (<https://shell.cloud.google.com>, déjà authentifié sur le
+projet, rien à installer) :
+
+```bash
+git clone https://github.com/dyaa-utopya/Fataawa.git && cd Fataawa
+git checkout claude/fataawa-appscript-cloudrun-rb1931
+nvm install 22 && nvm use 22        # le build du front demande Node >= 20
+GEMINI_KEY='LA_CLE_ACTUELLE' DRIVE_ROOT_FOLDER_ID=<id_dossier_drive_racine> ./infra/deploy-all.sh
+```
+
+Le script est idempotent (relançable après un échec) et enchaîne : infra → secret →
+worker → schedulers → API (`chercherf`) → front (**https://fataawa.web.app** — si le
+nom est déjà pris globalement, le script le dit et il suffit de changer `site` dans
+`firebase.json`). Il rappelle à la fin les deux gestes manuels : partage Drive/Sheet
+avec le service account, et backfill (`run-backfill.sh`, DRY_RUN d'abord).
+
+## Déploiement pas à pas (équivalent manuel)
 
 ```bash
 # 1. Infra : APIs, bucket, 2 service accounts, 3 queues, secret, index (dont vectoriel)
