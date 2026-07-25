@@ -177,8 +177,8 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           // le conduit à le plaquer sur des fatwas étrangères.
           // Une page peut à la fois achever une fatwa et en ouvrir une autre :
           // seul un en-tête EN TÊTE DE PAGE signifie qu'aucune continuation ne
-          // la précède. Sinon la première fatwa extraite est une suite, et
-          // hérite du numéro en cours.
+          // la précède. Sinon la page s'ouvre sur une suite, qui hérite du
+          // numéro en cours.
           const ouvreParEnTete = porteEnTeteFatwa(texte.slice(0, 200));
           const numeroHerite = ouvreParEnTete ? '' : (livre.dernierNumeroFatwa ?? '');
           let resultat;
@@ -245,6 +245,12 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           let creations = 0;
           let ecartees = 0;
           let dernierNumero = livre.dernierNumeroFatwa ?? '';
+          // Le numéro court le long de la page, de fatwa en fatwa : une fatwa
+          // muette reprend le dernier numéro vu, et dès qu'une fatwa déclare le
+          // sien, c'est lui qui prend le relais pour les suivantes. Ne rattacher
+          // que la première laissait orphelines les sous-questions d'après
+          // (« س ٣: », « س ٧: ») sur les fatwas longues, à cheval sur 3-4 pages.
+          let numeroCourant = numeroHerite;
           // Seul le texte de la page courante (plus le fragment hérité) autorise
           // une extraction : une fatwa vue uniquement dans les pages de contexte
           // appartient à une page suivante et sera prise quand le curseur y sera.
@@ -266,11 +272,9 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 'plusieurs numéros de fatwa dans un même bloc — citation ou découpage à vérifier',
               );
             }
-            // rattachement : seule la PREMIÈRE fatwa d'une page peut être une
-            // continuation, donc seule elle hérite du numéro en cours ; les
-            // suivantes commencent forcément dans la page
-            const numero =
-              normaliseNumeroFatwa(fatwa.numero) || (i === 0 ? numeroHerite : '');
+            const numeroDeclare = normaliseNumeroFatwa(fatwa.numero);
+            if (numeroDeclare !== '') numeroCourant = numeroDeclare;
+            const numero = numeroCourant;
             if (numero !== '') dernierNumero = numero;
             const id = fatwaIdFrom(livreId, numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
 
