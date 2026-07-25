@@ -78,9 +78,24 @@ Le connecteur **Drive est optionnel** : renseigner `DRIVE_ROOT_FOLDER_ID` (et pa
 dossier avec `sa-fataawa-worker@looker-studio-458310.iam.gserviceaccount.com`) pour que
 « A TRAITER » soit copié vers le bucket automatiquement.
 
-Les scans des **fatwas historiques** s'afficheront comme sources dès qu'ils seront
-déposés sous `legacy/` dans le bucket, sous le nom exact du champ `image_source`
-(l'API ne signe une URL que si l'objet existe réellement).
+### Scans des fatwas historiques
+
+Les 4 870 scans des 10 recueils vivaient dans Drive, rangés dans les sous-dossiers du
+pipeline Apps Script (`TRAITES`…). Le job `import-scans` les copie vers
+`legacy/{livre}/` **et raccorde chaque fatwa à sa page** en écrivant `gcs_path` — aucun
+chemin n'est deviné à la lecture. Le rapprochement se fait sur le nom de fichier
+(normalisation NFC de l'arabe, séparateurs et casse ignorés, repli sur livre + numéro de
+page) ; le test à blanc a raccordé 7 149 / 7 149 fatwas.
+
+```bash
+export DRIVE_SCANS_FOLDER_ID=<id_dossier_racine_des_scans>
+DRY_RUN=1 python3 infra/deploy_via_api.py import_scans   # rapport sans écriture
+python3 infra/deploy_via_api.py import_scans             # copie + raccordement
+```
+
+Prérequis : le dossier partagé (Lecteur) avec
+`sa-fataawa-worker@looker-studio-458310.iam.gserviceaccount.com`. Le job est idempotent :
+il ne recopie pas un objet déjà présent et complète les raccordements manquants.
 
 ## Développement local
 
