@@ -554,6 +554,8 @@ def step_deploy_api(images: dict[str, str]) -> str:
                             "GCS_BUCKET": BUCKET,
                             "GEMINI_MODEL": GEMINI_MODEL,
                             "EMBEDDING_MODEL": EMBEDDING_MODEL,
+                            # accès réservé : allowlist vérifiée à chaque requête
+                            "ALLOWED_EMAILS": os.environ.get("ALLOWED_EMAILS", "dyaa@utopya.fr"),
                         }
                     ),
                 }
