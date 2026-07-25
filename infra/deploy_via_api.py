@@ -538,6 +538,11 @@ def step_scheduler(worker_url: str) -> None:
 
 def step_deploy_api(images: dict[str, str]) -> str:
     log("Déploiement de l'API sur chercherf (remplace la révision actuelle)")
+    # URL du worker : nécessaire pour déclencher l'ingestion depuis l'espace d'ajout
+    worker = exists(
+        f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/services/fataawa-worker"
+    )
+    worker_url = (worker or {}).get("uri", "")
     body = {
         "template": {
             "serviceAccount": SA_API,
@@ -554,8 +559,12 @@ def step_deploy_api(images: dict[str, str]) -> str:
                             "GCS_BUCKET": BUCKET,
                             "GEMINI_MODEL": GEMINI_MODEL,
                             "EMBEDDING_MODEL": EMBEDDING_MODEL,
-                            # accès réservé : allowlist vérifiée à chaque requête
+                            # allowlist de l'espace d'ajout de fatwas (la
+                            # consultation, elle, reste publique)
                             "ALLOWED_EMAILS": os.environ.get("ALLOWED_EMAILS", "dyaa@utopya.fr"),
+                            "REGION": REGION,
+                            "WORKER_URL": worker_url,
+                            "TASKS_SA_EMAIL": SA_WORKER,
                         }
                     ),
                 }

@@ -105,6 +105,13 @@ const apiConfigSchema = z.object({
   RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(20),
   /** Où chercher les scans des fatwas historiques (champ image_source). */
   LEGACY_IMAGE_PREFIX: z.string().default('legacy/'),
+  /** Préfixe de dépôt des nouveaux scans (identique au worker). */
+  GCS_INBOX_PREFIX: z.string().default('inbox/'),
+  /** Nécessaires au déclenchement de l'ingestion depuis l'espace d'ajout. */
+  REGION: z.string().min(1).default('us-central1'),
+  WORKER_URL: z.string().default(''),
+  TASKS_SA_EMAIL: z.string().default(''),
+  OCR_QUEUE: z.string().min(1).default('ocr'),
 });
 
 export interface ApiConfig {
@@ -119,6 +126,11 @@ export interface ApiConfig {
   signedUrlTtlMinutes: number;
   rateLimitRpm: number;
   legacyImagePrefix: string;
+  gcsInboxPrefix: string;
+  region: string;
+  workerUrl: string;
+  tasksServiceAccountEmail: string;
+  ocrQueue: string;
 }
 
 export function parseApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
@@ -135,6 +147,11 @@ export function parseApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
     signedUrlTtlMinutes: raw.SIGNED_URL_TTL_MINUTES,
     rateLimitRpm: raw.RATE_LIMIT_RPM,
     legacyImagePrefix: raw.LEGACY_IMAGE_PREFIX,
+    gcsInboxPrefix: raw.GCS_INBOX_PREFIX,
+    region: raw.REGION,
+    workerUrl: raw.WORKER_URL.replace(/\/$/, ''),
+    tasksServiceAccountEmail: raw.TASKS_SA_EMAIL,
+    ocrQueue: raw.OCR_QUEUE,
   };
 }
 

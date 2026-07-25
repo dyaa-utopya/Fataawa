@@ -30,6 +30,22 @@ export interface ChatClarification {
   autres_interpretations: string[];
 }
 
+export interface LivreResume {
+  id: string;
+  titre: string;
+  nbPages: number;
+  nbPagesOcr: number;
+  nbFatwas: number;
+}
+
+export interface FichierPret {
+  nom: string;
+  url: string | null;
+  chemin: string | null;
+  numeroPage: number | null;
+  refus: string | null;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   texte: string;

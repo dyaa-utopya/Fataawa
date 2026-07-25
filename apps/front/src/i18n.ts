@@ -25,6 +25,16 @@ export interface Dict {
   notAllowed: string;
   sessionExpired: string;
   loading: string;
+  addFatwas: string;
+  uploadTitle: string;
+  backToChat: string;
+  bookName: string;
+  bookPlaceholder: string;
+  fileNameHint: string;
+  uploadStart: string;
+  uploading: string;
+  uploadDone: string;
+  booksInProgress: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -57,6 +67,16 @@ export const DICT: Record<Lang, Dict> = {
     notAllowed: 'Ce compte n’est pas autorisé à accéder à Fataawa.',
     sessionExpired: 'Session expirée, reconnectez-vous.',
     loading: 'Chargement…',
+    addFatwas: 'Ajouter des fatwas',
+    uploadTitle: 'Ajout de fatwas',
+    backToChat: 'Retour à la recherche',
+    bookName: 'Livre (recueil)',
+    bookPlaceholder: 'Nom du recueil, existant ou nouveau',
+    fileNameHint: 'Le nom de chaque image doit contenir son numéro de page (ex. page_012.png).',
+    uploadStart: 'Envoyer les pages',
+    uploading: 'Envoi en cours…',
+    uploadDone: 'Pages envoyées. Le traitement (OCR, structuration, indexation) a démarré ; les nouvelles fatwas apparaîtront dans la recherche au fur et à mesure.',
+    booksInProgress: 'Livres et avancement',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -88,6 +108,16 @@ export const DICT: Record<Lang, Dict> = {
     notAllowed: 'This account is not allowed to access Fataawa.',
     sessionExpired: 'Session expired, please sign in again.',
     loading: 'Loading…',
+    addFatwas: 'Add fatwas',
+    uploadTitle: 'Add fatwas',
+    backToChat: 'Back to search',
+    bookName: 'Book (collection)',
+    bookPlaceholder: 'Collection name, existing or new',
+    fileNameHint: 'Each image file name must contain its page number (e.g. page_012.png).',
+    uploadStart: 'Upload pages',
+    uploading: 'Uploading…',
+    uploadDone: 'Pages uploaded. Processing (OCR, structuring, indexing) has started; new fatwas will appear in search progressively.',
+    booksInProgress: 'Books and progress',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -118,6 +148,16 @@ export const DICT: Record<Lang, Dict> = {
     notAllowed: 'هذا الحساب غير مصرّح له بالدخول إلى فتاوى.',
     sessionExpired: 'انتهت الجلسة، أعد تسجيل الدخول.',
     loading: 'جارٍ التحميل…',
+    addFatwas: 'إضافة فتاوى',
+    uploadTitle: 'إضافة فتاوى',
+    backToChat: 'رجوع إلى البحث',
+    bookName: 'الكتاب (المجموعة)',
+    bookPlaceholder: 'اسم المجموعة، موجودة أو جديدة',
+    fileNameHint: 'يجب أن يحتوي اسم كل صورة على رقم الصفحة (مثال: page_012.png).',
+    uploadStart: 'إرسال الصفحات',
+    uploading: 'جارٍ الإرسال…',
+    uploadDone: 'تم إرسال الصفحات. بدأت المعالجة (المسح الضوئي، التنظيم، الفهرسة)؛ ستظهر الفتاوى الجديدة في البحث تدريجياً.',
+    booksInProgress: 'الكتب والتقدّم',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',

@@ -7,8 +7,9 @@ import {
   logger,
   pageRef,
 } from '@fataawa/core';
+import { adminRouter } from './admin.js';
 import { VectorIndexError, handleAsk } from './ask.js';
-import { parseAuthConfig, requireUser } from './auth.js';
+import { parseAuthConfig } from './auth.js';
 import { TokenBucketLimiter } from './ratelimit.js';
 import { asyncHandler } from './util.js';
 
@@ -19,9 +20,11 @@ import { asyncHandler } from './util.js';
  * IP + max-instances bas côté Cloud Run.
  */
 const cfg = apiConfig();
+// La consultation est publique ; seul l'espace d'ajout de fatwas exige un
+// compte autorisé (allowlist vérifiée côté serveur à chaque requête).
 const auth = parseAuthConfig(process.env);
 if (auth.allowedEmails.size === 0) {
-  logger.warn('ALLOWED_EMAILS vide : aucun compte ne pourra accéder à l’API');
+  logger.warn('ALLOWED_EMAILS vide : l’espace d’ajout de fatwas est fermé à tous');
 }
 
 const app = express();
@@ -42,7 +45,6 @@ const v1 = Router();
 v1.post(
   '/ask',
   limiterMw,
-  requireUser(auth),
   asyncHandler(async (req, res) => {
     const result = await handleAsk(cfg, req.body);
     res.status(200).json(result);
@@ -53,7 +55,6 @@ v1.post(
 v1.get(
   '/images/:livreId/:pageId',
   limiterMw,
-  requireUser(auth),
   asyncHandler(async (req, res) => {
     const { livreId, pageId } = req.params as { livreId: string; pageId: string };
     const snap = await pageRef(livreId, pageId).get();
@@ -73,6 +74,8 @@ app.get('/healthz', (_req, res) => {
 app.get('/', (_req, res) => {
   res.status(200).json({ service: 'fataawa-api', routes: ['/v1/ask', '/v1/images/:livreId/:pageId'] });
 });
+
+v1.use('/admin', adminRouter(cfg, auth));
 
 app.use('/v1', v1);
 app.use('/api/v1', v1);

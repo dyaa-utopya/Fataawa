@@ -15,6 +15,7 @@ export interface WorkerTasksRuntime {
 }
 
 export type WorkerTaskPath =
+  | '/tasks/ingestion'
   | '/tasks/ocr-page'
   | '/tasks/structurer'
   | '/tasks/embed'

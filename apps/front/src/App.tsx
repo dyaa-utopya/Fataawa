@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { ApiError, ask } from './api.js';
-import { connexionGoogle, deconnexion, observerUtilisateur } from './auth.js';
+import { observerUtilisateur } from './auth.js';
 import { DICT, type Lang } from './i18n.js';
 import type { AskSource, ChatMessage } from './types.js';
+import Upload from './Upload.js';
 
 const LANGS: Array<{ code: Lang; label: string }> = [
   { code: 'fr', label: 'FR' },
@@ -115,58 +116,6 @@ function SourceCard({
   );
 }
 
-/** Écran de connexion : rien n'est accessible sans compte autorisé. */
-function LoginScreen({
-  t,
-  lang,
-  setLang,
-  erreur,
-}: {
-  t: (typeof DICT)['fr'];
-  lang: Lang;
-  setLang: (l: Lang) => void;
-  erreur: string | null;
-}) {
-  const [enCours, setEnCours] = useState(false);
-  return (
-    <div className="flex h-dvh flex-col items-center justify-center bg-stone-100 px-4 text-stone-900">
-      <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">
-        <h1 className="text-2xl font-bold text-emerald-800">{t.appTitle}</h1>
-        <p className="mt-1 text-sm text-stone-500">{t.tagline}</p>
-        <p className="mt-6 text-sm text-stone-600">{t.signInHint}</p>
-        <button
-          onClick={() => {
-            setEnCours(true);
-            void connexionGoogle().finally(() => setEnCours(false));
-          }}
-          disabled={enCours}
-          className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
-        >
-          {enCours ? t.loading : t.signIn}
-        </button>
-        {erreur && (
-          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {erreur}
-          </p>
-        )}
-        <div className="mt-6 flex justify-center gap-1">
-          {LANGS.map((l) => (
-            <button
-              key={l.code}
-              onClick={() => setLang(l.code)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
-                lang === l.code ? 'bg-emerald-700 text-white' : 'text-stone-500 hover:bg-stone-100'
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => {
     const saved = localStorage.getItem('fataawa.lang');
@@ -182,17 +131,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [pageOuverte, setPageOuverte] = useState<AskSource | null>(null);
   const [utilisateur, setUtilisateur] = useState<User | null>(null);
-  const [authPrete, setAuthPrete] = useState(false);
+  const [vue, setVue] = useState<'chat' | 'ajout'>('chat');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(
-    () =>
-      observerUtilisateur((u) => {
-        setUtilisateur(u);
-        setAuthPrete(true);
-      }),
-    [],
-  );
+  useEffect(() => observerUtilisateur(setUtilisateur), []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -259,15 +201,9 @@ export default function App() {
   const derniersSuggestions = dernier?.suggestions ?? [];
   const clarificationActive = !loading && dernier?.role === 'assistant' ? dernier.clarification : undefined;
 
-  if (!authPrete) {
-    return (
-      <div className="flex h-dvh items-center justify-center bg-stone-100 text-sm text-stone-500">
-        {t.loading}
-      </div>
-    );
-  }
-  if (!utilisateur) {
-    return <LoginScreen t={t} lang={lang} setLang={setLang} erreur={error} />;
+  // La recherche est publique ; seul l'espace d'ajout demande une connexion.
+  if (vue === 'ajout') {
+    return <Upload t={t} utilisateur={utilisateur} onRetour={() => setVue('chat')} />;
   }
 
   return (
@@ -288,11 +224,11 @@ export default function App() {
               {t.newChat}
             </button>
             <button
-              onClick={() => void deconnexion()}
-              title={utilisateur.email ?? ''}
+              onClick={() => setVue('ajout')}
+              title={t.addFatwas}
               className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
             >
-              {t.signOut}
+              + {t.addFatwas}
             </button>
             <div className="flex overflow-hidden rounded-md border border-stone-300">
               {LANGS.map((l) => (

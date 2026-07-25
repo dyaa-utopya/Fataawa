@@ -50,6 +50,29 @@ export async function gcsList(bucket: string, prefix: string): Promise<GcsObject
 }
 
 /**
+ * URL signée V4 en écriture : le navigateur téléverse directement vers GCS,
+ * sans passer par Cloud Run (pas de limite de taille de requête, pas de
+ * consommation CPU). L'appelant doit envoyer exactement le même Content-Type.
+ */
+export async function gcsSignedUploadUrl(
+  bucket: string,
+  path: string,
+  contentType: string,
+  ttlMinutes: number,
+): Promise<string> {
+  const [url] = await client()
+    .bucket(bucket)
+    .file(path)
+    .getSignedUrl({
+      version: 'v4',
+      action: 'write',
+      contentType,
+      expires: Date.now() + ttlMinutes * 60_000,
+    });
+  return url;
+}
+
+/**
  * URL signée V4 en lecture. Sur Cloud Run (ADC sans clé privée), la signature
  * passe par l'API IAM signBlob : le service account doit avoir
  * roles/iam.serviceAccountTokenCreator sur lui-même (posé par infra/setup.sh).
