@@ -16,6 +16,7 @@ import {
   fromPipeline,
   geminiStructurePage,
   normaliseSousQuestion,
+  numerosFatwaCites,
   livreRef,
   logger,
   pagesCol,
@@ -241,6 +242,14 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 'fatwa écartée : elle commence dans une page de contexte, pas ici',
               );
               continue;
+            }
+            // sentinelle : plusieurs numéros dans un même bloc valent un coup d'œil
+            const cites = numerosFatwaCites(fatwa.texteComplet);
+            if (cites.length > 1) {
+              log.warn(
+                { pageId: pageDoc.id, numero: fatwa.numero, numerosCites: cites },
+                'plusieurs numéros de fatwa dans un même bloc — citation ou découpage à vérifier',
+              );
             }
             const id = fatwaIdFrom(livreId, fatwa.numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
             if (!(await fatwaRef(id).get()).exists) creations++;

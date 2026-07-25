@@ -5,6 +5,7 @@ import {
   fatwaIdFrom,
   normaliseNumeroFatwa,
   normaliseSousQuestion,
+  numerosFatwaCites,
   parseStructurationJson,
   sanitizeIdPart,
 } from '../src/structuring.js';
@@ -143,11 +144,27 @@ describe('commenceDans', () => {
   });
 });
 
+describe('numerosFatwaCites', () => {
+  it('relève les numéros cités, chiffres arabes compris', () => {
+    expect(numerosFatwaCites('السؤال الأول من الفتوى رقم (١٧٤٦٨)')).toEqual(['17468']);
+    const deux = numerosFatwaCites('من الفتوى رقم (17468) كما في الفتوى رقم (٥٧٨٣)');
+    expect(deux.sort()).toEqual(['17468', '5783']);
+  });
+  it('ne relève rien sans mention de fatwa', () => {
+    expect(numerosFatwaCites('رواه البخاري برقم (2987)')).toEqual([]);
+  });
+});
+
 describe('normaliseSousQuestion', () => {
   it('ramène les ordinaux arabes à leur rang', () => {
     expect(normaliseSousQuestion('الأول')).toBe('1');
     expect(normaliseSousQuestion('الثاني')).toBe('2');
     expect(normaliseSousQuestion('الخامس')).toBe('5');
+  });
+  it('traite aussi les formes féminines, présentes dans les recueils', () => {
+    expect(normaliseSousQuestion('الأولى')).toBe('1');
+    expect(normaliseSousQuestion('الثانية')).toBe('2');
+    expect(normaliseSousQuestion('الثالثة')).toBe('3');
   });
   it('ramène les lettres-puces à leur rang', () => {
     expect(normaliseSousQuestion('أ')).toBe('1');

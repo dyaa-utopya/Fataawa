@@ -271,6 +271,23 @@ export function normaliseNumeroFatwa(numero: string): string {
 }
 
 /**
+ * Numéros de fatwa cités dans un texte. Un bloc qui en contient plusieurs peut
+ * signaler deux fatwas soudées — mais c'est le plus souvent une citation
+ * légitime (le demandeur renvoie à une fatwa parue ailleurs), d'où une simple
+ * trace dans les journaux plutôt qu'un rejet.
+ */
+export function numerosFatwaCites(texte: string): string[] {
+  const trouves = new Set<string>();
+  for (const m of texte.matchAll(/الفتوى\s+رقم\s*\(?\s*([٠-٩0-9]+)\s*\)?/g)) {
+    const brut = m[1];
+    if (brut === undefined) continue;
+    const n = normalizeDigits(brut).replace(/^0+(?=\d)/, '');
+    if (n !== '') trouves.add(n);
+  }
+  return [...trouves];
+}
+
+/**
  * Repères de sous-question tels qu'imprimés dans les recueils, ramenés à un
  * rang numérique. Sans cette normalisation, la même question extraite deux
  * fois avec deux écritures différentes (« الثاني » puis « 2 ») produirait deux
@@ -278,9 +295,12 @@ export function normaliseNumeroFatwa(numero: string): string {
  * la fatwa.
  */
 const RANGS_ARABES: Record<string, number> = {
-  // ordinaux
+  // ordinaux masculins
   الأول: 1, الاول: 1, الثاني: 2, الثانى: 2, الثالث: 3, الرابع: 4, الخامس: 5,
   السادس: 6, السابع: 7, الثامن: 8, التاسع: 9, العاشر: 10,
+  // ordinaux féminins — présents dans les recueils (« السؤال الأولى »)
+  الأولى: 1, الاولى: 1, الثانية: 2, الثالثة: 3, الرابعة: 4, الخامسة: 5,
+  السادسة: 6, السابعة: 7, الثامنة: 8, التاسعة: 9, العاشرة: 10,
   // lettres de l'abjad utilisées comme puces
   أ: 1, ا: 1, ب: 2, ج: 3, د: 4, ه: 5, و: 6, ز: 7, ح: 8, ط: 9, ي: 10,
 };
