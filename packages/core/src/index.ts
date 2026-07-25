@@ -3,6 +3,7 @@ export * from './types.js';
 export * from './logger.js';
 export * from './pages.js';
 export * from './firestore.js';
+export * from './fatwas.js';
 export * from './gcs.js';
 export * from './drive.js';
 export * from './gemini.js';

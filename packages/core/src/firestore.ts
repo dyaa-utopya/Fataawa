@@ -16,7 +16,8 @@ export function db(): Firestore {
 
 export const COL_LIVRES = 'livres';
 export const SUB_PAGES = 'pages';
-export const COL_FATWAS = 'fatwas';
+/** Collection historique conservée telle quelle (cf. packages/core/src/fatwas.ts). */
+export const COL_FATWAS = 'fatawas_db';
 export const COL_CONVERSATIONS = 'conversations';
 export const SUB_MESSAGES = 'messages';
 

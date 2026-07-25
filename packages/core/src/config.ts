@@ -9,9 +9,12 @@ const workerConfigSchema = z.object({
   GOOGLE_CLOUD_PROJECT: z.string().min(1),
   REGION: z.string().min(1).default('us-central1'),
   GCS_BUCKET: z.string().min(1),
-  DRIVE_ROOT_FOLDER_ID: z.string().min(1),
+  /** Connecteur Drive optionnel : vide = ingestion depuis le bucket uniquement. */
+  DRIVE_ROOT_FOLDER_ID: z.string().default(''),
   DRIVE_INBOX_NAME: z.string().min(1).default('A TRAITER'),
   DRIVE_DONE_NAME: z.string().min(1).default('TRAITES'),
+  /** Préfixe GCS où déposer les scans : inbox/{livreId}/{fichier}.png */
+  GCS_INBOX_PREFIX: z.string().default('inbox/'),
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().min(1).default('gemini-3.1-flash-lite'),
   EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-001'),
@@ -35,6 +38,7 @@ export interface WorkerConfig {
   driveRootFolderId: string;
   driveInboxName: string;
   driveDoneName: string;
+  gcsInboxPrefix: string;
   geminiApiKey: string;
   geminiModel: string;
   embeddingModel: string;
@@ -60,6 +64,7 @@ export function parseWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     driveRootFolderId: raw.DRIVE_ROOT_FOLDER_ID,
     driveInboxName: raw.DRIVE_INBOX_NAME,
     driveDoneName: raw.DRIVE_DONE_NAME,
+    gcsInboxPrefix: raw.GCS_INBOX_PREFIX,
     geminiApiKey: raw.GEMINI_API_KEY,
     geminiModel: raw.GEMINI_MODEL,
     embeddingModel: raw.EMBEDDING_MODEL,
@@ -98,6 +103,8 @@ const apiConfigSchema = z.object({
   HISTORY_TURNS: z.coerce.number().int().min(0).max(20).default(6),
   SIGNED_URL_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
   RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(20),
+  /** Où chercher les scans des fatwas historiques (champ image_source). */
+  LEGACY_IMAGE_PREFIX: z.string().default('legacy/'),
 });
 
 export interface ApiConfig {
@@ -111,6 +118,7 @@ export interface ApiConfig {
   historyTurns: number;
   signedUrlTtlMinutes: number;
   rateLimitRpm: number;
+  legacyImagePrefix: string;
 }
 
 export function parseApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
@@ -126,6 +134,7 @@ export function parseApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
     historyTurns: raw.HISTORY_TURNS,
     signedUrlTtlMinutes: raw.SIGNED_URL_TTL_MINUTES,
     rateLimitRpm: raw.RATE_LIMIT_RPM,
+    legacyImagePrefix: raw.LEGACY_IMAGE_PREFIX,
   };
 }
 

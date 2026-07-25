@@ -24,6 +24,31 @@ export async function gcsDownload(bucket: string, path: string): Promise<Buffer>
   return buf;
 }
 
+export async function gcsExists(bucket: string, path: string): Promise<boolean> {
+  const [ok] = await client().bucket(bucket).file(path).exists();
+  return ok;
+}
+
+export interface GcsObject {
+  path: string;
+  contentType: string;
+}
+
+/**
+ * Tous les objets sous un préfixe (auto-pagination ; les « dossiers »
+ * eux-mêmes sont ignorés). L'état d'avancement vit dans Firestore, pas dans
+ * l'arborescence : rien n'est déplacé après ingestion.
+ */
+export async function gcsList(bucket: string, prefix: string): Promise<GcsObject[]> {
+  const [files] = await client().bucket(bucket).getFiles({ prefix });
+  return files
+    .filter((f) => !f.name.endsWith('/'))
+    .map((f) => ({
+      path: f.name,
+      contentType: f.metadata.contentType ?? 'application/octet-stream',
+    }));
+}
+
 /**
  * URL signée V4 en lecture. Sur Cloud Run (ADC sans clé privée), la signature
  * passe par l'API IAM signBlob : le service account doit avoir

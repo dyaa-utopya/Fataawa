@@ -1,16 +1,8 @@
 import { z } from 'zod';
-import { type PageSourceRef, stripJsonFences } from '@fataawa/core';
+import { type Fatwa, stripJsonFences } from '@fataawa/core';
 
-/** Fatwa candidate issue du vector search, projetée pour le RAG. */
-export interface SourceFatwa {
-  id: string;
-  livreId: string;
-  numero: string;
-  sujetPrincipal: string;
-  sousSujet: string;
-  texteComplet: string;
-  pages: PageSourceRef[];
-}
+/** Fatwa candidate issue du vector search. */
+export type SourceFatwa = Fatwa;
 
 const MAX_CHARS_PAR_BLOC = 4000;
 
@@ -25,7 +17,7 @@ fatwa_id: ${s.id}
 numero_fatwa: ${s.numero || '—'}
 sujet: ${sujet || '—'}
 texte:
-${s.texteComplet.slice(0, MAX_CHARS_PAR_BLOC)}
+${s.texte.slice(0, MAX_CHARS_PAR_BLOC)}
 ---`;
     })
     .join('\n');

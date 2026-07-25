@@ -1,19 +1,23 @@
 import { Router } from 'express';
 import {
+  CHAMP_EMBEDDING_ACTUEL,
   FieldValue,
-  type FatwaDoc,
+  type FatwaStored,
   type WorkerConfig,
   embedTaskPayloadSchema,
   fatwaRef,
   geminiEmbedText,
   logger,
+  texteAEmbedder,
+  toFatwa,
 } from '@fataawa/core';
 import { asyncHandler, errorMessage } from '../util.js';
 
 /**
  * POST /tasks/embed — déclenché après chaque écriture de fatwa (queue
- * « embedding »). Calcule le vecteur (sujet + texte) et passe la fatwa
- * EN_LIGNE. Idempotent : recalculer un embedding est sans effet de bord.
+ * « embedding ») et par le job de ré-embedding. Écrit le vecteur dans
+ * `embedding_v2` (le champ historique `embedding`, produit par un modèle
+ * retiré, reste intact) et passe la fatwa EN_LIGNE. Idempotent.
  */
 export function embedRouter(cfg: WorkerConfig): Router {
   const router = Router();
@@ -37,10 +41,12 @@ export function embedRouter(cfg: WorkerConfig): Router {
         res.status(200).json({ ignoree: 'fatwa absente' });
         return;
       }
-      const fatwa = snap.data() as FatwaDoc;
-      const texte = [fatwa.sujetPrincipal, fatwa.sousSujet, fatwa.texteComplet]
-        .filter(Boolean)
-        .join('\n');
+      const texte = texteAEmbedder(toFatwa(snap.id, snap.data() as FatwaStored));
+      if (texte.trim() === '') {
+        log.warn('fatwa sans texte, embedding ignoré');
+        res.status(200).json({ ignoree: 'texte vide' });
+        return;
+      }
 
       try {
         const vecteur = await geminiEmbedText(
@@ -49,8 +55,8 @@ export function embedRouter(cfg: WorkerConfig): Router {
           { apiKey: cfg.geminiApiKey },
         );
         await ref.update({
-          embedding: FieldValue.vector(vecteur),
-          embeddingModel: cfg.embeddingModel,
+          [CHAMP_EMBEDDING_ACTUEL]: FieldValue.vector(vecteur),
+          embedding_model: cfg.embeddingModel,
           statut: 'EN_LIGNE',
           majAt: FieldValue.serverTimestamp(),
         });

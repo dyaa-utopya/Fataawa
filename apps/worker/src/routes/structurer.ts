@@ -12,6 +12,7 @@ import {
   enqueueWorkerTask,
   fatwaIdFrom,
   fatwaRef,
+  fromPipeline,
   geminiStructurePage,
   livreRef,
   logger,
@@ -176,18 +177,21 @@ export function structurerRouter(cfg: WorkerConfig): Router {
               fragment && i === 0
                 ? dedupPages([...fragmentPages, pageSource])
                 : [pageSource];
-            batch.set(fatwaRef(id), {
-              livreId,
-              numero: fatwa.numero,
-              sujetPrincipal: fatwa.sujetPrincipal,
-              sousSujet: fatwa.sousSujet,
-              texteComplet: fatwa.texteComplet,
-              pages,
-              statut: 'STRUCTUREE',
-              source: 'pipeline',
-              creeAt: FieldValue.serverTimestamp(),
-              majAt: FieldValue.serverTimestamp(),
-            });
+            batch.set(
+              fatwaRef(id),
+              {
+                ...fromPipeline({
+                  livreId,
+                  numero: fatwa.numero,
+                  sujetPrincipal: fatwa.sujetPrincipal,
+                  sousSujet: fatwa.sousSujet,
+                  texte: fatwa.texteComplet,
+                  pages,
+                }),
+                majAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
             aEmbedder.push(id);
           });
 

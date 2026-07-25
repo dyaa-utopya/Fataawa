@@ -1,18 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import {
   type ApiConfig,
-  type FatwaDoc,
+  CHAMP_EMBEDDING_ACTUEL,
+  type FatwaStored,
   FieldValue,
   type GeminiContent,
   conversationRef,
   db,
   fatwasCol,
+  gcsExists,
   gcsSignedReadUrl,
   geminiEmbedText,
   geminiGenerateText,
   livreRef,
   logger,
   messagesCol,
+  toFatwa,
 } from '@fataawa/core';
 import {
   ANSWER_RESPONSE_SCHEMA,
@@ -73,6 +76,31 @@ const CLARIFICATION_PAR_DEFAUT: Record<AskRequest['langue'], string> = {
   en: 'Is this your question?',
   ar: 'هل سؤالك هو التالي؟',
 };
+
+/**
+ * URL signée du scan d'une fatwa. Deux cas : fatwa du pipeline (chemin GCS
+ * connu) ou fatwa historique, dont on ne connaît que le nom de fichier du
+ * scan — on le cherche alors sous LEGACY_IMAGE_PREFIX et on ne signe que si
+ * l'objet existe réellement (tant que les scans n'ont pas été déposés dans le
+ * bucket, la source s'affiche simplement sans image).
+ */
+async function urlImage(cfg: ApiConfig, fatwa: SourceFatwa): Promise<string | null> {
+  const chemin = fatwa.pages[0]?.gcsPath;
+  try {
+    if (chemin) {
+      return await gcsSignedReadUrl(cfg.gcsBucket, chemin, cfg.signedUrlTtlMinutes);
+    }
+    if (fatwa.imageSource !== '') {
+      const legacy = `${cfg.legacyImagePrefix}${fatwa.imageSource}`;
+      if (await gcsExists(cfg.gcsBucket, legacy)) {
+        return await gcsSignedReadUrl(cfg.gcsBucket, legacy, cfg.signedUrlTtlMinutes);
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, fatwaId: fatwa.id }, 'résolution de l’image source en échec');
+  }
+  return null;
+}
 
 async function persistExchange(
   conversationId: string,
@@ -184,23 +212,17 @@ export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResul
   let sources: SourceFatwa[];
   try {
     const snap = await fatwasCol()
-      .findNearest('embedding', qVector, { limit: cfg.topK, distanceMeasure: 'COSINE' })
+      .findNearest(CHAMP_EMBEDDING_ACTUEL, qVector, {
+        limit: cfg.topK,
+        distanceMeasure: 'COSINE',
+      })
       .get();
-    sources = snap.docs.map((d) => {
-      const f = d.data() as FatwaDoc;
-      return {
-        id: d.id,
-        livreId: f.livreId,
-        numero: f.numero ?? '',
-        sujetPrincipal: f.sujetPrincipal ?? '',
-        sousSujet: f.sousSujet ?? '',
-        texteComplet: f.texteComplet ?? '',
-        pages: f.pages ?? [],
-      };
-    });
+    sources = snap.docs.map((d) => toFatwa(d.id, d.data() as FatwaStored));
   } catch (err) {
     if ((err as { code?: number }).code === 9) {
-      throw new VectorIndexError('lancer infra/setup.sh (index fatwas/embedding)');
+      throw new VectorIndexError(
+        `index vectoriel sur fatawas_db.${CHAMP_EMBEDDING_ACTUEL} absent ou en construction`,
+      );
     }
     throw err;
   }
@@ -241,20 +263,12 @@ QUESTION (langue de réponse : ${req.langue}) : ${questionRecherche}`,
   const sourcesOut: AskSourceOut[] = await Promise.all(
     utilisees.map(async (u) => {
       const page = u.source.pages[0];
-      let url: string | null = null;
-      if (page) {
-        try {
-          url = await gcsSignedReadUrl(cfg.gcsBucket, page.gcsPath, cfg.signedUrlTtlMinutes);
-        } catch (err) {
-          logger.warn({ err, gcsPath: page.gcsPath }, 'signature URL image en échec');
-        }
-      }
       return {
         numero_fatwa: u.numeroFatwa,
         citation_arabe: u.citationArabe,
         livre_titre: titres.get(u.source.livreId) ?? '',
-        numero_page: page?.numero ?? null,
-        url_image: url,
+        numero_page: page?.numero ?? u.source.numeroPage,
+        url_image: await urlImage(cfg, u.source),
       };
     }),
   );

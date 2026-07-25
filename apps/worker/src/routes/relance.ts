@@ -70,6 +70,7 @@ export function relanceRouter(cfg: WorkerConfig): Router {
       // fatwas structurées jamais indexées (tâche embed perdue)
       const fatwasSnap = await fatwasCol()
         .where('statut', '==', 'STRUCTUREE')
+        .select()
         .limit(MAX_EMBEDDINGS_PAR_PASSAGE)
         .get();
       for (const doc of fatwasSnap.docs) {

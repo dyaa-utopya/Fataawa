@@ -62,23 +62,6 @@ export interface PageDoc {
   majAt: Timestamp;
 }
 
-/** Document fatwas/{fatwaId} — fatwaId = `{livreId}_{numéro normalisé}` (dédup). */
-export interface FatwaDoc {
-  livreId: string;
-  numero: string;
-  sujetPrincipal: string;
-  sousSujet: string;
-  texteComplet: string;
-  pages: PageSourceRef[];
-  statut: 'STRUCTUREE' | 'EN_LIGNE';
-  /** Vecteur Firestore (FieldValue.vector) une fois l'embedding calculé. */
-  embedding?: unknown;
-  embeddingModel?: string;
-  source?: string;
-  creeAt: Timestamp;
-  majAt: Timestamp;
-}
-
 export const ocrTaskPayloadSchema = z.object({
   livreId: z.string().min(1),
   numeroPage: z.number().int().min(0),

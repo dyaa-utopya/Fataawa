@@ -311,15 +311,22 @@ def step_indexes() -> None:
                 ],
             },
         ),
+        # index vectoriel du RAG sur la collection historique `fatawas_db`.
+        # Champ embedding_v2 : le champ `embedding` d'origine vient d'un modèle
+        # retiré de l'API Gemini, ses vecteurs sont inexploitables ici.
         (
-            "fatwas",
+            "fatawas_db",
             {
                 "queryScope": "COLLECTION",
                 "fields": [
-                    {"fieldPath": "embedding", "vectorConfig": {"dimension": 768, "flat": {}}}
+                    {
+                        "fieldPath": "embedding_v2",
+                        "vectorConfig": {"dimension": 768, "flat": {}},
+                    }
                 ],
             },
         ),
+        # (pas d'index composite pour `statut` : l'index simple automatique suffit)
     ]:
         try:
             req("POST", f"{base}/{cg}/indexes", body)
@@ -462,9 +469,8 @@ def _deploy_service(service_id: str, service: dict, label: str) -> str:
 
 def step_deploy_worker(images: dict[str, str]) -> str:
     log("Déploiement du worker (fataawa-worker)")
+    # Connecteur Drive optionnel : vide = ingestion depuis le bucket seulement.
     drive_root = os.environ.get("DRIVE_ROOT_FOLDER_ID", "")
-    if not drive_root:
-        raise SystemExit("DRIVE_ROOT_FOLDER_ID est obligatoire")
 
     def worker_body(worker_url: str) -> dict:
         return {
@@ -563,6 +569,58 @@ def step_deploy_api(images: dict[str, str]) -> str:
     return url
 
 
+def step_reembed(images: dict[str, str]) -> None:
+    """Cloud Run Job de ré-embedding de la collection historique (idempotent)."""
+    log("Ré-embedding de fatawas_db (Cloud Run Job)")
+    base = f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/jobs"
+    body = {
+        "template": {
+            "taskCount": 1,
+            "template": {
+                "serviceAccount": SA_WORKER,
+                "timeout": "3600s",
+                "maxRetries": 0,
+                "containers": [
+                    {
+                        "image": images["worker"],
+                        "command": ["node"],
+                        "args": ["apps/worker/dist/jobs/reembed.js"],
+                        "resources": {"limits": {"memory": "1Gi", "cpu": "1"}},
+                        "env": _env_vars(
+                            {
+                                "GOOGLE_CLOUD_PROJECT": PROJECT,
+                                "EMBEDDING_MODEL": EMBEDDING_MODEL,
+                                "CONCURRENCY": os.environ.get("CONCURRENCY", "6"),
+                                "LIMIT": os.environ.get("LIMIT", "0"),
+                                "FORCE": os.environ.get("FORCE", ""),
+                            }
+                        ),
+                    }
+                ],
+            },
+        }
+    }
+    if exists(f"{base}/fataawa-reembed") is None:
+        op = req("POST", f"{base}?jobId=fataawa-reembed", body)
+    else:
+        op = req("PATCH", f"{base}/fataawa-reembed", body)
+    poll_lro("https://run.googleapis.com/v2", op["name"], "job de ré-embedding")
+
+    op = req("POST", f"{base}/fataawa-reembed:run", {})
+    log("exécution lancée — suivi dans Cloud Logging (fataawa-reembed)")
+    exec_name = op["metadata"]["name"] if "metadata" in op else op["name"]
+    start = time.time()
+    while time.time() - start < 3600:
+        ex = req("GET", f"https://run.googleapis.com/v2/{exec_name}")
+        if ex.get("succeededCount"):
+            log(f"ré-embedding terminé ({ex.get('succeededCount')} tâche(s) OK)")
+            return
+        if ex.get("failedCount"):
+            raise RuntimeError("le job de ré-embedding a échoué — voir Cloud Logging")
+        time.sleep(20)
+    raise RuntimeError("ré-embedding : délai dépassé")
+
+
 def step_hosting() -> None:
     log("Front → Firebase Hosting")
     with open(os.path.join(REPO_ROOT, "firebase.json")) as f:
@@ -656,7 +714,7 @@ def main() -> None:
         globals()[f"step_{step}"]()
     elif step == "build":
         print(json.dumps(step_build(), indent=2))
-    elif step in {"deploy_worker", "scheduler", "deploy_api"}:
+    elif step in {"deploy_worker", "scheduler", "deploy_api", "reembed"}:
         tag = os.environ.get("IMAGE_TAG", "")
         if not tag and step != "scheduler":
             raise SystemExit("IMAGE_TAG requis (tag des images déjà construites)")
@@ -668,6 +726,8 @@ def main() -> None:
             step_deploy_worker(images)
         elif step == "deploy_api":
             step_deploy_api(images)
+        elif step == "reembed":
+            step_reembed(images)
         else:
             worker = req(
                 "GET",

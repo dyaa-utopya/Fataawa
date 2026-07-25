@@ -15,8 +15,10 @@ function source(id: string, numero = ''): SourceFatwa {
     numero,
     sujetPrincipal: 'الزكاة',
     sousSujet: '',
-    texteComplet: 'نص الفتوى',
+    texte: 'نص الفتوى',
     pages: [],
+    imageSource: '',
+    numeroPage: null,
   };
 }
 

@@ -6,6 +6,7 @@ import {
   enqueueWorkerTask,
   fatwaIdFrom,
   fatwaRef,
+  fromPipeline,
   logger,
 } from '@fataawa/core';
 import { parseMapping, rowToLigne } from './mapping.js';
@@ -70,18 +71,21 @@ async function main(): Promise<void> {
       continue;
     }
 
-    await fatwaRef(fatwaId).set({
-      livreId,
-      numero: ligne.numero !== '' ? ligne.numero : ligne.id,
-      sujetPrincipal: ligne.sujet,
-      sousSujet: ligne.sousSujet,
-      texteComplet: ligne.texte,
-      pages: [],
-      statut: 'STRUCTUREE',
-      source: 'backfill-master',
-      creeAt: FieldValue.serverTimestamp(),
-      majAt: FieldValue.serverTimestamp(),
-    });
+    await fatwaRef(fatwaId).set(
+      {
+        ...fromPipeline({
+          livreId,
+          numero: ligne.numero !== '' ? ligne.numero : ligne.id,
+          sujetPrincipal: ligne.sujet,
+          sousSujet: ligne.sousSujet,
+          texte: ligne.texte,
+          pages: [],
+        }),
+        source: 'backfill-master',
+        majAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
     await enqueueWorkerTask(rt, env.EMBED_QUEUE, '/tasks/embed', { fatwaId });
 
     importees++;
