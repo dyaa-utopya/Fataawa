@@ -1,137 +1,147 @@
 # Fataawa — pipeline Cloud Run
 
-Pipeline complet : scans de livres arabes (Drive) → OCR → structuration en fatwas →
-embeddings → recherche RAG conversationnelle, en Node.js/TypeScript sur Cloud Run,
-projet GCP **`looker-studio-458310`** (`us-central1`). L'architecture et le plan de
-migration sont dans **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
+Pipeline complet : scans de livres arabes → OCR → structuration en fatwas → embeddings
+→ recherche RAG conversationnelle, en Node.js/TypeScript sur Cloud Run, projet GCP
+**`looker-studio-458310`** (`us-central1`). L'architecture et les décisions sont dans
+**[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 
-**État : phases 1 à 3 livrées** (les robots Apps Script sont arrêtés, ce dépôt porte
-tout le pipeline). Reste côté GCP : dérouler le déploiement ci-dessous, et la
-révocation des anciennes clés exposées dans `CONFIG.gs` (phase 0, toujours d'actualité).
+**Déployé et en ligne** — Apps Script est arrêté, ce dépôt porte tout le pipeline :
+
+| Composant | Où |
+|---|---|
+| Front (SPA trilingue) | **https://fataawa.web.app** (Firebase Hosting) |
+| API publique | service Cloud Run **`chercherf`** (URL historique conservée) |
+| Worker (privé, IAM) | service Cloud Run `fataawa-worker` |
+| Données | Firestore, collection **`fatawas_db`** (7 149 fatwas) |
+| Scans | bucket `looker-studio-458310-fataawa-scans` |
 
 ## Arborescence
 
 ```
 packages/core     domaine partagé : config (zod), Firestore, Drive, GCS, Gemini
                   (REST + retry), embeddings, structuration, Vision, Cloud Tasks
+                  fatwas.ts → mapping avec la collection historique fatawas_db
 apps/worker       service Cloud Run privé « fataawa-worker » :
-                  POST /tasks/ingestion   Drive « A TRAITER » → GCS + Firestore (15 min)
+                  POST /tasks/ingestion   bucket (+ Drive optionnel) → pages (15 min)
                   POST /tasks/ocr-page    OCR Gemini, fallback Vision (queue ocr)
                   POST /tasks/structurer  fatwas ordonnées par livre (queue structuration)
-                  POST /tasks/embed       embeddings → EN_LIGNE (queue embedding)
+                  POST /tasks/embed       embedding → EN_LIGNE (queue embedding)
+                  POST /tasks/reembed     (ré)indexation par lots de la collection
                   POST /tasks/relance     filet de sécurité horaire
-                  jobs/backfill-master    import one-shot du MASTER_SHEET historique
-apps/api          API publique (déployée sur le service EXISTANT « chercherf ») :
-                  POST /v1/ask            RAG conversationnel groundé + sources signées
-                  GET  /v1/images/:livreId/:pageId   URL signée fraîche d'un scan
-apps/front        SPA React trilingue FR/EN/AR (RTL), chat + suggestions + sources,
-                  servie par Firebase Hosting (rewrite /api/** → chercherf)
-infra/            scripts gcloud : setup, deploys, schedulers, backfill
+                  jobs/reembed            même travail en Cloud Run Job
+                  jobs/backfill-master    import Sheet → Firestore (optionnel, inutilisé)
+apps/api          API publique (service chercherf) :
+                  POST /v1/ask            triage → RAG groundé → sources signées
+                  GET  /v1/images/:livreId/:pageId
+apps/front        SPA React trilingue FR/EN/AR (RTL), chat + clarification + sources
+infra/            deploy_via_api.py (déploiement par API REST, sans gcloud)
+                  *.sh (équivalents gcloud), firebase.json
 ```
 
-## Modèle de données (Firestore)
+## Données : la collection `fatawas_db`
 
-- `livres/{livreId}` — livreId = ID du dossier Drive ; compteurs, `curseurStructuration`
-  (dernière page structurée), `fatwaOuverte` (fatwa coupée en fin de page, la « SUITE »),
-  `structLease` (une seule structuration active par livre).
-- `livres/{livreId}/pages/{0007}` — un document par scan : `gcsPath`, `statutOcr`
-  (`A_TRAITER → EN_COURS → TRAITE | QUARANTAINE`), `texteOcr`, `moteur`, tentatives.
-  Une page en `QUARANTAINE` **bloque la structuration de son livre** (choix assumé).
-- `fatwas/{livreId_numero}` — l'ID est la déduplication ; texte, sujet, pages sources,
-  `embedding` (vecteur 768, index Firestore), `statut STRUCTUREE → EN_LIGNE`.
-- `conversations/{id}/messages` — historique du chat public (ID anonyme côté client).
+La base de production contenait déjà **7 149 fatwas** avec ses propres noms de champs.
+**Aucune migration n'a été faite** : le code lit et écrit cette collection telle quelle,
+via la couche de mapping unique `packages/core/src/fatwas.ts`.
 
-Convention de nommage des scans : le **dernier nombre du nom de fichier est le numéro
-de page** (`page_012.png`, `٠١٢.png`…). Un fichier sans nombre est ignoré et signalé.
+| Champ | Rôle |
+|---|---|
+| `texte_arabe`, `sujet_principal`, `sous_sujet`, `numero_fatwa`, `numero_page` | contenu (historique) |
+| `image_source` | nom de fichier du scan (fatwas historiques) |
+| `embedding` | **vecteur historique, conservé intact, plus utilisé** |
+| `embedding_v2` + `embedding_model` | vecteur courant (`gemini-embedding-001`, 768d) |
+| `livre_id`, `gcs_path`, `pages`, `statut` | ajoutés par le pipeline |
+
+**Pourquoi `embedding_v2`** : mesure faite au déploiement — les vecteurs historiques ne
+proviennent pas de `gemini-embedding-001` (similarité cosinus **0,04** entre le vecteur
+stocké et un ré-embedding du même texte) et leur modèle d'origine a été retiré de l'API
+Gemini. Ils sont donc inutilisables pour interroger la base. Le nouveau vecteur vit dans
+un champ distinct, avec son propre index : le champ d'origine reste intact et un retour
+arrière reste possible.
+
+Le pipeline écrit aussi `livres/{livreId}` et `livres/{livreId}/pages/{0007}`
+(`statutOcr : A_TRAITER → EN_COURS → TRAITE | QUARANTAINE`, `texteOcr`, `moteur`…).
+Une page en `QUARANTAINE` **bloque la structuration de son livre** (choix assumé).
+
+## Ajouter des scans
+
+Déposer les images dans le bucket sous **`inbox/{nom-du-livre}/`** — le nom de fichier
+doit contenir le numéro de page (`page_012.png`, `٠١٢.png`… : le **dernier nombre** du
+nom fait foi). Rien n'est déplacé : l'état vit dans Firestore, un fichier déjà ingéré est
+ignoré au passage suivant. L'ingestion tourne toutes les 15 minutes, ou à la demande :
+
+```bash
+gcloud scheduler jobs run fataawa-ingestion --location=us-central1
+```
+
+Le connecteur **Drive est optionnel** : renseigner `DRIVE_ROOT_FOLDER_ID` (et partager le
+dossier avec `sa-fataawa-worker@looker-studio-458310.iam.gserviceaccount.com`) pour que
+« A TRAITER » soit copié vers le bucket automatiquement.
+
+Les scans des **fatwas historiques** s'afficheront comme sources dès qu'ils seront
+déposés sous `legacy/` dans le bucket, sous le nom exact du champ `image_source`
+(l'API ne signe une URL que si l'objet existe réellement).
 
 ## Développement local
 
 ```bash
 npm ci
 npm run typecheck && npm run lint && npm test
-npm run -w @fataawa/front build        # build du front
-npm run -w @fataawa/front dev          # front en dev (proxy /api → VITE_API_TARGET)
+npm run -w @fataawa/front build     # build du front
+npm run -w @fataawa/front dev       # front en dev (proxy /api → VITE_API_TARGET)
 ```
 
-Worker ou API en local (avec un compte ayant les accès GCP) : `cp .env.example .env`,
-remplir, puis `npm run build && node --env-file=.env apps/worker/dist/server.js`
-(ou `apps/api/dist/server.js`).
+## Déploiement
 
-## Déploiement en une commande (recommandé)
-
-Depuis **Cloud Shell** (<https://shell.cloud.google.com>, déjà authentifié sur le
-projet, rien à installer) :
+Deux voies équivalentes. Depuis une machine **sans gcloud** (ou pour tout piloter par
+API), avec un jeton `gcloud auth print-access-token` :
 
 ```bash
-git clone https://github.com/dyaa-utopya/Fataawa.git && cd Fataawa
-git checkout claude/fataawa-appscript-cloudrun-rb1931
-nvm install 22 && nvm use 22        # le build du front demande Node >= 20
-GEMINI_KEY='LA_CLE_ACTUELLE' DRIVE_ROOT_FOLDER_ID=<id_dossier_drive_racine> ./infra/deploy-all.sh
+export ACCESS_TOKEN=ya29...        # jeton admin (1 h)
+python3 infra/deploy_via_api.py all          # infra + build + worker + API + front
+python3 infra/deploy_via_api.py build        # étapes individuelles, toutes idempotentes
+IMAGE_TAG=<tag> python3 infra/deploy_via_api.py deploy_api
+python3 infra/deploy_via_api.py hosting
+IMAGE_TAG=<tag> python3 infra/deploy_via_api.py reembed   # ré-indexation complète
 ```
 
-Le script est idempotent (relançable après un échec) et enchaîne : infra → secret →
-worker → schedulers → API (`chercherf`) → front (**https://fataawa.web.app** — si le
-nom est déjà pris globalement, le script le dit et il suffit de changer `site` dans
-`firebase.json`). Il rappelle à la fin les deux gestes manuels : partage Drive/Sheet
-avec le service account, et backfill (`run-backfill.sh`, DRY_RUN d'abord).
-
-## Déploiement pas à pas (équivalent manuel)
+Depuis **Cloud Shell** (gcloud déjà authentifié) :
 
 ```bash
-# 1. Infra : APIs, bucket, 2 service accounts, 3 queues, secret, index (dont vectoriel)
-./infra/setup.sh
-
-# 2. Clé Gemini dans Secret Manager (la clé actuelle convient ; rotation plus tard =
-#    nouvelle version du secret + redéploiement)
-printf '%s' 'LA_CLE_GEMINI' | gcloud secrets versions add gemini-api-key --data-file=-
-
-# 3. Partages : le dossier Drive racine des livres ET le MASTER_SHEET avec
-#    sa-fataawa-worker@looker-studio-458310.iam.gserviceaccount.com (Éditeur / Lecteur)
-
-# 4. Worker + déclencheurs
-DRIVE_ROOT_FOLDER_ID=<id_dossier_racine> ./infra/deploy-worker.sh
-./infra/setup-scheduler.sh
-
-# 5. Backfill du MASTER_SHEET historique → collection fatwas
-#    D'abord en DRY_RUN pour vérifier le mapping des colonnes (voir logs du job),
-#    ajuster MASTER_MAPPING si besoin (défaut : id=A,sujet=B,sousSujet=C,numero=D,texte=E)
-MASTER_SHEET_ID=<id_sheet> DRY_RUN=1 ./infra/run-backfill.sh
-MASTER_SHEET_ID=<id_sheet> ./infra/run-backfill.sh
-
-# 6. API publique — REMPLACE la révision actuelle du service chercherf (URL conservée)
-./infra/deploy-api.sh
-
-# 7. Front sur Firebase Hosting (une fois : npx firebase-tools login)
-./infra/deploy-front.sh
+GEMINI_KEY='...' DRIVE_ROOT_FOLDER_ID=<id> ./infra/deploy-all.sh
 ```
 
-### Validation
+La clé Gemini est un secret Secret Manager (`gemini-api-key`), restreinte à
+`generativelanguage.googleapis.com`. Rotation = nouvelle version du secret +
+redéploiement ; le code ne la voit que par variable d'environnement.
 
-1. **OCR** : déposer quelques scans dans `livre/A TRAITER`, lancer
-   `gcloud scheduler jobs run fataawa-ingestion --location=us-central1`, vérifier dans
-   Firestore que les pages passent en `TRAITE` puis que des documents `fatwas/` avec
-   `statut: EN_LIGNE` apparaissent.
-2. **API** : `curl -s -X POST <url_chercherf>/v1/ask -H 'content-type: application/json'
-   -d '{"question":"…","langue":"fr"}'` → réponse groundée + sources avec `url_image`.
-3. **Front** : l'URL Firebase Hosting sert le chat ; `/api/v1/ask` doit répondre à
-   travers le rewrite (même origine).
+## Comportement de la recherche
 
-## Sécurité (rappel)
+1. **Triage** : le modèle lit la question, la reformule en question autonome (les
+   références à l'historique sont résolues) et la classe claire / ambiguë.
+2. **Question claire** → recherche vectorielle Firestore (`findNearest` sur
+   `embedding_v2`, cosine, top 6) → réponse groundée avec citations et sources.
+3. **Question ambiguë** → réponse `type: "clarification"` : « Votre question est-elle
+   bien celle-ci ? » + interprétations alternatives, **sans recherche**. La recherche
+   part quand l'utilisateur confirme (`questionConfirmee: true`).
+4. Les sources citées sont **vérifiées contre le lot réellement récupéré** : le modèle
+   ne peut pas inventer de référence.
 
-- Worker : IAM uniquement (Cloud Tasks/Scheduler avec OIDC), jamais public.
+## Sécurité
+
+- Worker : **IAM uniquement** (Cloud Tasks / Scheduler avec jeton OIDC), jamais public.
 - API : publique sans login (décision actée) — rate limiting par IP + `max-instances=3`.
-  Durcissement possible ensuite : App Check.
-- Unique secret : la clé API Gemini dans Secret Manager. Vision, Firestore, GCS, Drive,
-  Sheets : service accounts sans clé.
-- **Phase 0 restante** : révoquer les anciennes clés Gemini/Vision et la private key
-  Firebase présentes en clair dans le `CONFIG.gs` de l'ancien projet Apps Script.
+- Un seul secret dans tout le système : la clé Gemini. Firestore, GCS, Drive, Vision :
+  service accounts sans clé.
+- **Reste à faire (côté console)** : révoquer les anciennes clés Gemini/Vision et la
+  private key Firebase qui étaient en clair dans le `CONFIG.gs` d'Apps Script.
 
 ## Limites connues
 
 - Scans > ~15 Mo : dépassent la limite d'appel inline Gemini → `QUARANTAINE` après
   3 tentatives.
-- Une fatwa encore ouverte en toute fin de livre reste dans `livre.fatwaOuverte`
-  (visible en admin) tant que de nouvelles pages n'arrivent pas.
-- Alerte e-mail sur quarantaine : à poser dans Cloud Monitoring (métrique log-based
-  sur `severity=ERROR`, message « QUARANTAINE ») — non scriptée ici.
+- Une fatwa encore ouverte en fin de livre reste dans `livre.fatwaOuverte` tant que de
+  nouvelles pages n'arrivent pas.
+- Alerte e-mail sur quarantaine : à poser dans Cloud Monitoring (métrique log-based sur
+  `severity=ERROR`) — non scriptée ici.
 - Rate limiting par instance (en mémoire) : suffisant avec `max-instances` bas.
