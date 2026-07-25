@@ -67,7 +67,7 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  async function send(question: string) {
+  async function send(question: string, confirmee = false) {
     const clean = question.trim();
     if (clean === '' || loading) return;
     setError(null);
@@ -75,18 +75,32 @@ export default function App() {
     setMessages((prev) => [...prev, { role: 'user', texte: clean }]);
     setLoading(true);
     try {
-      const res = await ask(clean, conversationId, lang);
+      const res = await ask(clean, conversationId, lang, confirmee);
       setConversationId(res.conversationId);
       localStorage.setItem('fataawa.conversation', res.conversationId);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          texte: res.reponse_utilisateur,
-          sources: res.sources_utilisees,
-          suggestions: res.suggestions_cliquables,
-        },
-      ]);
+      if (res.type === 'clarification') {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            texte: res.message,
+            clarification: {
+              question_proposee: res.question_proposee,
+              autres_interpretations: res.autres_interpretations,
+            },
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            texte: res.reponse_utilisateur,
+            sources: res.sources_utilisees,
+            suggestions: res.suggestions_cliquables,
+          },
+        ]);
+      }
     } catch (err) {
       setError(err instanceof ApiError && err.status === 429 ? t.rateLimited : t.errorNetwork);
     } finally {
@@ -101,8 +115,9 @@ export default function App() {
     localStorage.removeItem('fataawa.conversation');
   }
 
-  const derniersSuggestions =
-    messages.length > 0 ? (messages[messages.length - 1]?.suggestions ?? []) : [];
+  const dernier = messages[messages.length - 1];
+  const derniersSuggestions = dernier?.suggestions ?? [];
+  const clarificationActive = !loading && dernier?.role === 'assistant' ? dernier.clarification : undefined;
 
   return (
     <div className="flex min-h-dvh flex-col bg-stone-100 text-stone-900">
@@ -160,6 +175,14 @@ export default function App() {
                   <p dir="auto" className="texte-arabe whitespace-pre-wrap">
                     {m.texte}
                   </p>
+                  {m.clarification && (
+                    <p
+                      dir="auto"
+                      className="texte-arabe rounded-lg border-s-4 border-emerald-500 bg-emerald-50 px-3 py-2 font-medium text-emerald-900"
+                    >
+                      « {m.clarification.question_proposee} »
+                    </p>
+                  )}
                   {m.sources && m.sources.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
@@ -183,6 +206,35 @@ export default function App() {
           )}
         </div>
 
+        {clarificationActive && (
+          <div className="mt-4 space-y-2">
+            <button
+              onClick={() => void send(clarificationActive.question_proposee, true)}
+              dir="auto"
+              className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+            >
+              ✓ {t.clarifyYes}
+            </button>
+            {clarificationActive.autres_interpretations.length > 0 && (
+              <>
+                <p className="text-xs text-stone-500">{t.clarifyOr}</p>
+                <div className="flex flex-wrap gap-2">
+                  {clarificationActive.autres_interpretations.map((q, i) => (
+                    <button
+                      key={i}
+                      onClick={() => void send(q, true)}
+                      dir="auto"
+                      className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-sm text-emerald-800 hover:bg-emerald-50"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {derniersSuggestions.length > 0 && !loading && (
           <div className="mt-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">
@@ -192,7 +244,7 @@ export default function App() {
               {derniersSuggestions.map((s, i) => (
                 <button
                   key={i}
-                  onClick={() => void send(s)}
+                  onClick={() => void send(s, true)}
                   dir="auto"
                   className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-sm text-emerald-800 hover:bg-emerald-50"
                 >

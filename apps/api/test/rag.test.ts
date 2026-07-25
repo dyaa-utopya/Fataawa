@@ -5,6 +5,7 @@ import {
   buildContexte,
   filtreSources,
   parseAnswer,
+  parseTriage,
 } from '../src/rag.js';
 
 function source(id: string, numero = ''): SourceFatwa {
@@ -30,6 +31,41 @@ describe('askRequestSchema', () => {
     expect(() =>
       askRequestSchema.parse({ question: 'question valide', conversationId: 'a/b' }),
     ).toThrow();
+  });
+  it('questionConfirmee vaut false par défaut', () => {
+    expect(askRequestSchema.parse({ question: 'la zakat ?' }).questionConfirmee).toBe(false);
+    expect(
+      askRequestSchema.parse({ question: 'la zakat ?', questionConfirmee: true }).questionConfirmee,
+    ).toBe(true);
+  });
+});
+
+describe('parseTriage', () => {
+  it('parse une question claire', () => {
+    const t = parseTriage(
+      JSON.stringify({ statut: 'CLAIRE', question_autonome: 'Quelles sont les conditions de la zakat ?' }),
+    );
+    expect(t.statut).toBe('CLAIRE');
+    expect(t.message_clarification).toBe('');
+    expect(t.autres_interpretations).toEqual([]);
+  });
+  it('parse une question ambiguë avec interprétations', () => {
+    const t = parseTriage(
+      '```json\n' +
+        JSON.stringify({
+          statut: 'AMBIGUE',
+          question_autonome: 'Le vinaigre est-il licite ?',
+          message_clarification: 'Votre question est-elle bien celle-ci ?',
+          autres_interpretations: ['Le commerce du vinaigre est-il licite ?'],
+        }) +
+        '\n```',
+    );
+    expect(t.statut).toBe('AMBIGUE');
+    expect(t.autres_interpretations).toHaveLength(1);
+  });
+  it('rejette un statut inconnu ou une question vide', () => {
+    expect(() => parseTriage(JSON.stringify({ statut: 'BOF', question_autonome: 'q' }))).toThrow();
+    expect(() => parseTriage(JSON.stringify({ statut: 'CLAIRE', question_autonome: '' }))).toThrow();
   });
 });
 

@@ -6,11 +6,28 @@ export interface AskSource {
   url_image: string | null;
 }
 
-export interface AskResponse {
+export interface AskAnswerResponse {
+  type: 'reponse';
   conversationId: string;
   reponse_utilisateur: string;
   suggestions_cliquables: string[];
   sources_utilisees: AskSource[];
+}
+
+/** La question était ambiguë : l'API demande confirmation avant de chercher. */
+export interface AskClarificationResponse {
+  type: 'clarification';
+  conversationId: string;
+  message: string;
+  question_proposee: string;
+  autres_interpretations: string[];
+}
+
+export type AskResponse = AskAnswerResponse | AskClarificationResponse;
+
+export interface ChatClarification {
+  question_proposee: string;
+  autres_interpretations: string[];
 }
 
 export interface ChatMessage {
@@ -18,4 +35,5 @@ export interface ChatMessage {
   texte: string;
   sources?: AskSource[];
   suggestions?: string[];
+  clarification?: ChatClarification;
 }

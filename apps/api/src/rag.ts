@@ -38,6 +38,8 @@ export const askRequestSchema = z.object({
     .regex(/^[A-Za-z0-9_-]{8,128}$/)
     .optional(),
   langue: z.enum(['fr', 'en', 'ar']).default('fr'),
+  /** true quand l'utilisateur a confirmé une question proposée : le triage est sauté. */
+  questionConfirmee: z.boolean().default(false),
 });
 export type AskRequest = z.infer<typeof askRequestSchema>;
 
@@ -83,6 +85,56 @@ const LANGUE_REPONSE: Record<AskRequest['langue'], string> = {
   en: 'anglais',
   ar: 'arabe',
 };
+
+// ─────────────────────── triage de clarté (avant recherche) ───────────────────────
+
+export const TRIAGE_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    statut: { type: 'STRING', enum: ['CLAIRE', 'AMBIGUE'] },
+    question_autonome: { type: 'STRING' },
+    message_clarification: { type: 'STRING' },
+    autres_interpretations: { type: 'ARRAY', items: { type: 'STRING' } },
+  },
+  required: ['statut', 'question_autonome'],
+} as const;
+
+const triageSchema = z.object({
+  statut: z.enum(['CLAIRE', 'AMBIGUE']),
+  question_autonome: z.string().min(1),
+  message_clarification: z.string().default(''),
+  autres_interpretations: z.array(z.string()).max(3).default([]),
+});
+export type TriageResult = z.infer<typeof triageSchema>;
+
+export function parseTriage(raw: string): TriageResult {
+  return triageSchema.parse(JSON.parse(stripJsonFences(raw)));
+}
+
+/**
+ * Lit la question avant toute recherche : claire → on cherche directement
+ * (avec une reformulation autonome qui résout les références à l'historique) ;
+ * ambiguë → on renvoie une demande de confirmation à l'utilisateur.
+ */
+export function triageSystemPrompt(langue: AskRequest['langue']): string {
+  return `Tu es le filtre d'entrée d'un moteur de recherche dans des recueils de fatwas.
+On te donne l'éventuel historique de conversation puis la dernière question de l'utilisateur.
+Ta mission :
+1. question_autonome : reformule la question en UNE question autonome et précise, en
+   résolvant les références à l'historique (« et pour les femmes ? » devient une question
+   complète). Elle sert à la recherche documentaire : conserve tous les termes importants,
+   dans la langue de l'utilisateur.
+2. statut = "CLAIRE" si un lecteur comprend sans hésiter ce qui est demandé — c'est le
+   cas de la grande majorité des questions, même familières ou mal orthographiées.
+   Choisis "AMBIGUE" UNIQUEMENT si la question est réellement équivoque : trop vague
+   (« c'est permis ? » sans sujet), plusieurs sens incompatibles, référence introuvable
+   dans l'historique, ou question incompréhensible.
+3. Si AMBIGUE : message_clarification = une phrase courte en ${LANGUE_REPONSE[langue]}
+   qui demande confirmation (du type « Votre question est-elle bien celle-ci ? ») ;
+   question_autonome = l'interprétation la plus probable ; autres_interpretations =
+   0 à 3 lectures alternatives plausibles, chacune formulée comme une question complète.
+Réponds STRICTEMENT au schéma JSON demandé.`;
+}
 
 /** System prompt de grounding strict (hérité du front GAS, exécuté côté API). */
 export function groundingSystemPrompt(langue: AskRequest['langue']): string {

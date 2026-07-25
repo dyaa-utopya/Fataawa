@@ -16,12 +16,16 @@ import {
 } from '@fataawa/core';
 import {
   ANSWER_RESPONSE_SCHEMA,
+  type AskRequest,
   type SourceFatwa,
+  TRIAGE_RESPONSE_SCHEMA,
   askRequestSchema,
   buildContexte,
   filtreSources,
   groundingSystemPrompt,
   parseAnswer,
+  parseTriage,
+  triageSystemPrompt,
 } from './rag.js';
 
 /** Index vectoriel absent ou en cours de création (FAILED_PRECONDITION). */
@@ -40,16 +44,67 @@ export interface AskSourceOut {
   url_image: string | null;
 }
 
-export interface AskResult {
+export interface AskAnswerOut {
+  type: 'reponse';
   conversationId: string;
   reponse_utilisateur: string;
   suggestions_cliquables: string[];
   sources_utilisees: AskSourceOut[];
 }
 
+/** La question est ambiguë : on demande confirmation avant de chercher. */
+export interface AskClarificationOut {
+  type: 'clarification';
+  conversationId: string;
+  message: string;
+  question_proposee: string;
+  autres_interpretations: string[];
+}
+
+export type AskResult = AskAnswerOut | AskClarificationOut;
+
 interface MessageDoc {
   role: 'user' | 'assistant';
   texte: string;
+}
+
+const CLARIFICATION_PAR_DEFAUT: Record<AskRequest['langue'], string> = {
+  fr: 'Votre question est-elle bien celle-ci ?',
+  en: 'Is this your question?',
+  ar: 'هل سؤالك هو التالي؟',
+};
+
+async function persistExchange(
+  conversationId: string,
+  langue: AskRequest['langue'],
+  userTexte: string,
+  assistantTexte: string,
+  isNew: boolean,
+): Promise<void> {
+  const now = Date.now();
+  const batch = db().batch();
+  batch.set(
+    conversationRef(conversationId),
+    {
+      langue,
+      majAt: FieldValue.serverTimestamp(),
+      ...(isNew ? { creeAt: FieldValue.serverTimestamp() } : {}),
+    },
+    { merge: true },
+  );
+  batch.set(messagesCol(conversationId).doc(), {
+    role: 'user',
+    texte: userTexte,
+    ordre: now,
+    at: FieldValue.serverTimestamp(),
+  });
+  batch.set(messagesCol(conversationId).doc(), {
+    role: 'assistant',
+    texte: assistantTexte,
+    ordre: now + 1,
+    at: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
 }
 
 export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResult> {
@@ -67,10 +122,62 @@ export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResul
   const history = (histSnap?.docs ?? [])
     .map((d) => d.data() as MessageDoc)
     .reverse();
+  const historyContents: GeminiContent[] = history.map(
+    (m): GeminiContent => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.texte }],
+    }),
+  );
 
-  // retrieval : embedding de la question puis KNN Firestore
+  // triage : Gemini lit la question avant toute recherche. Claire → recherche
+  // directe (avec la reformulation autonome). Ambiguë → demande de confirmation.
+  // Sauté quand l'utilisateur vient de confirmer une question proposée.
+  let questionRecherche = req.question;
+  if (!req.questionConfirmee) {
+    try {
+      const raw = await geminiGenerateText(
+        {
+          model: cfg.geminiModel,
+          systemInstruction: triageSystemPrompt(req.langue),
+          contents: [
+            ...historyContents,
+            { role: 'user', parts: [{ text: `QUESTION À ANALYSER : ${req.question}` }] },
+          ],
+          responseSchema: TRIAGE_RESPONSE_SCHEMA,
+          temperature: 0,
+        },
+        { apiKey: cfg.geminiApiKey },
+      );
+      const triage = parseTriage(raw);
+      if (triage.statut === 'AMBIGUE') {
+        const message = triage.message_clarification || CLARIFICATION_PAR_DEFAUT[req.langue];
+        await persistExchange(
+          conversationId,
+          req.langue,
+          req.question,
+          `${message} « ${triage.question_autonome} »`,
+          history.length === 0,
+        );
+        return {
+          type: 'clarification',
+          conversationId,
+          message,
+          question_proposee: triage.question_autonome,
+          autres_interpretations: triage.autres_interpretations,
+        };
+      }
+      if (triage.question_autonome.trim() !== '') {
+        questionRecherche = triage.question_autonome.trim();
+      }
+    } catch (err) {
+      // jamais bloquant : en cas d'échec du triage on cherche avec la question brute
+      logger.warn({ err }, 'triage en échec, recherche avec la question originale');
+    }
+  }
+
+  // retrieval : embedding de la question (résolue) puis KNN Firestore
   const qVector = await geminiEmbedText(
-    req.question,
+    questionRecherche,
     { model: cfg.embeddingModel, dim: cfg.embeddingDim, taskType: 'RETRIEVAL_QUERY' },
     { apiKey: cfg.geminiApiKey },
   );
@@ -100,19 +207,14 @@ export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResul
 
   // génération groundée, avec l'historique de conversation
   const contents: GeminiContent[] = [
-    ...history.map(
-      (m): GeminiContent => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.texte }],
-      }),
-    ),
+    ...historyContents,
     {
       role: 'user',
       parts: [
         {
           text: `${buildContexte(sources)}
 
-QUESTION (langue de réponse : ${req.langue}) : ${req.question}`,
+QUESTION (langue de réponse : ${req.langue}) : ${questionRecherche}`,
         },
       ],
     },
@@ -157,33 +259,16 @@ QUESTION (langue de réponse : ${req.langue}) : ${req.question}`,
     }),
   );
 
-  // persistance de l'échange (la conversation est la mémoire du chat public)
-  const now = Date.now();
-  const batch = db().batch();
-  batch.set(
-    conversationRef(conversationId),
-    {
-      langue: req.langue,
-      majAt: FieldValue.serverTimestamp(),
-      ...(history.length === 0 ? { creeAt: FieldValue.serverTimestamp() } : {}),
-    },
-    { merge: true },
+  await persistExchange(
+    conversationId,
+    req.langue,
+    req.question,
+    answer.reponse_utilisateur,
+    history.length === 0,
   );
-  batch.set(messagesCol(conversationId).doc(), {
-    role: 'user',
-    texte: req.question,
-    ordre: now,
-    at: FieldValue.serverTimestamp(),
-  });
-  batch.set(messagesCol(conversationId).doc(), {
-    role: 'assistant',
-    texte: answer.reponse_utilisateur,
-    ordre: now + 1,
-    at: FieldValue.serverTimestamp(),
-  });
-  await batch.commit();
 
   return {
+    type: 'reponse',
     conversationId,
     reponse_utilisateur: answer.reponse_utilisateur,
     suggestions_cliquables: answer.suggestions_cliquables,

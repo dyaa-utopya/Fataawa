@@ -14,6 +14,8 @@ export interface Dict {
   viewPage: string;
   page: string;
   fatwa: string;
+  clarifyYes: string;
+  clarifyOr: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -35,6 +37,8 @@ export const DICT: Record<Lang, Dict> = {
     viewPage: 'Voir la page scannée',
     page: 'page',
     fatwa: 'Fatwa',
+    clarifyYes: 'Oui, c’est ma question',
+    clarifyOr: 'ou choisissez une autre lecture — ou reformulez librement :',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -55,6 +59,8 @@ export const DICT: Record<Lang, Dict> = {
     viewPage: 'View scanned page',
     page: 'page',
     fatwa: 'Fatwa',
+    clarifyYes: 'Yes, that’s my question',
+    clarifyOr: 'or pick another reading — or simply rephrase:',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -74,6 +80,8 @@ export const DICT: Record<Lang, Dict> = {
     viewPage: 'عرض الصفحة الممسوحة',
     page: 'صفحة',
     fatwa: 'فتوى',
+    clarifyYes: 'نعم، هذا سؤالي',
+    clarifyOr: 'أو اختر قراءة أخرى — أو أعد صياغة سؤالك:',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',

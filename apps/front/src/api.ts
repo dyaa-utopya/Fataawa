@@ -10,6 +10,7 @@ export async function ask(
   question: string,
   conversationId: string | null,
   langue: string,
+  questionConfirmee = false,
 ): Promise<AskResponse> {
   const res = await fetch('/api/v1/ask', {
     method: 'POST',
@@ -18,6 +19,7 @@ export async function ask(
       question,
       ...(conversationId ? { conversationId } : {}),
       langue,
+      questionConfirmee,
     }),
   });
   if (!res.ok) throw new ApiError(res.status);
