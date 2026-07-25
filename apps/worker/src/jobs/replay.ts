@@ -93,6 +93,10 @@ async function main(): Promise<void> {
       await livreRef(livreId)
         .set(
           {
+            // le titre doit être posé ici : l'ingestion ne le renseigne qu'à la
+            // création du document, or le RESET le crée avant elle
+            titre: livre,
+            statut: 'EN_COURS',
             curseurStructuration: 0,
             fatwaOuverte: null,
             nbPages: 0,
