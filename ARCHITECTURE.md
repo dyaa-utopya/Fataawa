@@ -267,6 +267,10 @@ Cible :
 
 ## 9. Plan de migration (strangler, sans interruption de service)
 
+> **Avancement (25/07/2026)** : Apps Script est entièrement arrêté ; le code des
+> phases 1, 2 et 3 est livré dans ce dépôt (voir README pour le déploiement).
+> Restent la phase 0 (révocation des clés, côté console) et les phases 4-5.
+
 | Phase | Contenu | On coupe quoi côté GAS |
 |---|---|---|
 | **0 — Hygiène** (immédiat) | Révocation/rotation des clés et de la private key ; clés temporaires en Script Properties ; export de sauvegarde des Sheets/Docs | rien |

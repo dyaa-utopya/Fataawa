@@ -1,8 +1,10 @@
 import express from 'express';
 import { logger, workerConfig } from '@fataawa/core';
+import { embedRouter } from './routes/embed.js';
 import { ingestionRouter } from './routes/ingestion.js';
 import { ocrRouter } from './routes/ocr.js';
 import { relanceRouter } from './routes/relance.js';
+import { structurerRouter } from './routes/structurer.js';
 
 // Fail fast : la configuration est validée au démarrage.
 const cfg = workerConfig();
@@ -19,6 +21,8 @@ app.get('/healthz', (_req, res) => {
 // account autorisé, peuvent atteindre ces routes.
 app.use('/tasks', ingestionRouter(cfg));
 app.use('/tasks', ocrRouter(cfg));
+app.use('/tasks', structurerRouter(cfg));
+app.use('/tasks', embedRouter(cfg));
 app.use('/tasks', relanceRouter(cfg));
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

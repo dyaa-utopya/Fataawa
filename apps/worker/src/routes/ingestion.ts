@@ -5,7 +5,7 @@ import {
   type WorkerConfig,
   downloadFile,
   ensureSubfolder,
-  enqueueOcrTask,
+  enqueueWorkerTask,
   extractNumeroPage,
   findSubfolder,
   gcsPathForPage,
@@ -21,7 +21,7 @@ import {
   STATUT_OCR,
   type PageDoc,
 } from '@fataawa/core';
-import { asyncHandler, errorMessage } from '../util.js';
+import { asyncHandler, errorMessage, tasksRuntime } from '../util.js';
 
 interface IngestionStats {
   livres: number;
@@ -67,6 +67,7 @@ export function ingestionRouter(cfg: WorkerConfig): Router {
             statut: 'EN_COURS',
             nbPages: 0,
             nbPagesOcr: 0,
+            nbFatwas: 0,
             curseurStructuration: 0,
             fatwaOuverte: null,
             creeAt: FieldValue.serverTimestamp(),
@@ -129,16 +130,10 @@ export function ingestionRouter(cfg: WorkerConfig): Router {
             });
             await ref.update({ nbPages: FieldValue.increment(1), majAt: FieldValue.serverTimestamp() });
 
-            await enqueueOcrTask(
-              {
-                project: cfg.project,
-                region: cfg.region,
-                queue: cfg.ocrQueue,
-                workerUrl: cfg.workerUrl,
-                serviceAccountEmail: cfg.tasksServiceAccountEmail,
-              },
-              { livreId: livre.id, numeroPage: numero },
-            );
+            await enqueueWorkerTask(tasksRuntime(cfg), cfg.ocrQueue, '/tasks/ocr-page', {
+              livreId: livre.id,
+              numeroPage: numero,
+            });
 
             // signal visuel pour les opérateurs — la vérité reste Firestore
             await moveFile(fichier.id, inboxId, doneId).catch((err: unknown) =>

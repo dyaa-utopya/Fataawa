@@ -5,7 +5,10 @@
   "type": "module",
   "dependencies": {
     "@fataawa/core": "*",
-    "express": "^4.21.0"
+    "@googleapis/sheets": "^9.3.0",
+    "express": "^4.21.0",
+    "google-auth-library": "^9.14.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/express": "^4.17.21"

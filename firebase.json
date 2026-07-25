@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "public": "apps/front/dist",
+    "ignore": ["**/.*"],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "chercherf",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

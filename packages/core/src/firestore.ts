@@ -16,6 +16,9 @@ export function db(): Firestore {
 
 export const COL_LIVRES = 'livres';
 export const SUB_PAGES = 'pages';
+export const COL_FATWAS = 'fatwas';
+export const COL_CONVERSATIONS = 'conversations';
+export const SUB_MESSAGES = 'messages';
 
 export function livresCol(): CollectionReference {
   return db().collection(COL_LIVRES);
@@ -35,6 +38,22 @@ export function pageRef(livreId: string, pageId: string): DocumentReference {
 
 export function pagesGroup(): CollectionGroup {
   return db().collectionGroup(SUB_PAGES);
+}
+
+export function fatwasCol(): CollectionReference {
+  return db().collection(COL_FATWAS);
+}
+
+export function fatwaRef(fatwaId: string): DocumentReference {
+  return fatwasCol().doc(fatwaId);
+}
+
+export function conversationRef(conversationId: string): DocumentReference {
+  return db().collection(COL_CONVERSATIONS).doc(conversationId);
+}
+
+export function messagesCol(conversationId: string): CollectionReference {
+  return conversationRef(conversationId).collection(SUB_MESSAGES);
 }
 
 export { FieldValue, Timestamp };

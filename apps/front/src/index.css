@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Confort de lecture du texte arabe (réponses et citations) */
+[dir='rtl'],
+.texte-arabe {
+  line-height: 1.9;
+}

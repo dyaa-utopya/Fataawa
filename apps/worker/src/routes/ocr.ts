@@ -6,6 +6,7 @@ import {
   type PageDoc,
   STATUT_OCR,
   type WorkerConfig,
+  enqueueWorkerTask,
   gcsDownload,
   geminiOcrImage,
   livreRef,
@@ -15,14 +16,15 @@ import {
   pageRef,
   visionOcrImage,
 } from '@fataawa/core';
-import { asyncHandler, errorMessage } from '../util.js';
+import { asyncHandler, errorMessage, tasksRuntime } from '../util.js';
 
 /**
  * POST /tasks/ocr-page — déclenché par Cloud Tasks (queue « ocr »).
  * Idempotent : une page déjà TRAITE (ou en QUARANTAINE) est ignorée.
  * Échec : réponse 503 → Cloud Tasks rejoue avec backoff ; à partir de
  * MAX_OCR_ATTEMPTS tentatives, la page passe en QUARANTAINE et la tâche est
- * acquittée (200) pour stopper les retries.
+ * acquittée (200) pour stopper les retries. Une page OCRisée déclenche la
+ * structuration de son livre.
  */
 export function ocrRouter(cfg: WorkerConfig): Router {
   const router = Router();
@@ -90,6 +92,8 @@ export function ocrRouter(cfg: WorkerConfig): Router {
           nbPagesOcr: FieldValue.increment(1),
           majAt: FieldValue.serverTimestamp(),
         });
+        // la page suivante du livre est peut-être maintenant structurable
+        await enqueueWorkerTask(tasksRuntime(cfg), cfg.structQueue, '/tasks/structurer', { livreId });
         log.info({ moteur, longueur: texteOcr.length, tentatives }, 'page OCRisée');
         res.status(200).json({ ok: true, moteur });
       } catch (err) {
