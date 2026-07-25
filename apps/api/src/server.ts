@@ -8,6 +8,7 @@ import {
   pageRef,
 } from '@fataawa/core';
 import { VectorIndexError, handleAsk } from './ask.js';
+import { parseAuthConfig, requireUser } from './auth.js';
 import { TokenBucketLimiter } from './ratelimit.js';
 import { asyncHandler } from './util.js';
 
@@ -18,6 +19,10 @@ import { asyncHandler } from './util.js';
  * IP + max-instances bas côté Cloud Run.
  */
 const cfg = apiConfig();
+const auth = parseAuthConfig(process.env);
+if (auth.allowedEmails.size === 0) {
+  logger.warn('ALLOWED_EMAILS vide : aucun compte ne pourra accéder à l’API');
+}
 
 const app = express();
 app.set('trust proxy', true);
@@ -37,6 +42,7 @@ const v1 = Router();
 v1.post(
   '/ask',
   limiterMw,
+  requireUser(auth),
   asyncHandler(async (req, res) => {
     const result = await handleAsk(cfg, req.body);
     res.status(200).json(result);
@@ -47,6 +53,7 @@ v1.post(
 v1.get(
   '/images/:livreId/:pageId',
   limiterMw,
+  requireUser(auth),
   asyncHandler(async (req, res) => {
     const { livreId, pageId } = req.params as { livreId: string; pageId: string };
     const snap = await pageRef(livreId, pageId).get();

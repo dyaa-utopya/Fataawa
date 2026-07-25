@@ -1,3 +1,4 @@
+import { jeton } from './auth.js';
 import type { AskResponse } from './types.js';
 
 export class ApiError extends Error {
@@ -12,9 +13,11 @@ export async function ask(
   langue: string,
   questionConfirmee = false,
 ): Promise<AskResponse> {
+  const token = await jeton();
+  if (token === null) throw new ApiError(401);
   const res = await fetch('/api/v1/ask', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify({
       question,
       ...(conversationId ? { conversationId } : {}),

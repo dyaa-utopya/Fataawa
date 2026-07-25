@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import type { User } from 'firebase/auth';
 import { ApiError, ask } from './api.js';
+import { connexionGoogle, deconnexion, observerUtilisateur } from './auth.js';
 import { DICT, type Lang } from './i18n.js';
 import type { AskSource, ChatMessage } from './types.js';
 
@@ -113,6 +115,58 @@ function SourceCard({
   );
 }
 
+/** Écran de connexion : rien n'est accessible sans compte autorisé. */
+function LoginScreen({
+  t,
+  lang,
+  setLang,
+  erreur,
+}: {
+  t: (typeof DICT)['fr'];
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  erreur: string | null;
+}) {
+  const [enCours, setEnCours] = useState(false);
+  return (
+    <div className="flex h-dvh flex-col items-center justify-center bg-stone-100 px-4 text-stone-900">
+      <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">
+        <h1 className="text-2xl font-bold text-emerald-800">{t.appTitle}</h1>
+        <p className="mt-1 text-sm text-stone-500">{t.tagline}</p>
+        <p className="mt-6 text-sm text-stone-600">{t.signInHint}</p>
+        <button
+          onClick={() => {
+            setEnCours(true);
+            void connexionGoogle().finally(() => setEnCours(false));
+          }}
+          disabled={enCours}
+          className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+        >
+          {enCours ? t.loading : t.signIn}
+        </button>
+        {erreur && (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {erreur}
+          </p>
+        )}
+        <div className="mt-6 flex justify-center gap-1">
+          {LANGS.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLang(l.code)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                lang === l.code ? 'bg-emerald-700 text-white' : 'text-stone-500 hover:bg-stone-100'
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => {
     const saved = localStorage.getItem('fataawa.lang');
@@ -127,7 +181,18 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageOuverte, setPageOuverte] = useState<AskSource | null>(null);
+  const [utilisateur, setUtilisateur] = useState<User | null>(null);
+  const [authPrete, setAuthPrete] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(
+    () =>
+      observerUtilisateur((u) => {
+        setUtilisateur(u);
+        setAuthPrete(true);
+      }),
+    [],
+  );
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -136,7 +201,7 @@ export default function App() {
   }, [lang]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
 
   async function send(question: string, confirmee = false) {
@@ -174,7 +239,10 @@ export default function App() {
         ]);
       }
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 429 ? t.rateLimited : t.errorNetwork);
+      if (err instanceof ApiError && err.status === 403) setError(t.notAllowed);
+      else if (err instanceof ApiError && err.status === 401) setError(t.sessionExpired);
+      else if (err instanceof ApiError && err.status === 429) setError(t.rateLimited);
+      else setError(t.errorNetwork);
     } finally {
       setLoading(false);
     }
@@ -191,9 +259,22 @@ export default function App() {
   const derniersSuggestions = dernier?.suggestions ?? [];
   const clarificationActive = !loading && dernier?.role === 'assistant' ? dernier.clarification : undefined;
 
+  if (!authPrete) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-stone-100 text-sm text-stone-500">
+        {t.loading}
+      </div>
+    );
+  }
+  if (!utilisateur) {
+    return <LoginScreen t={t} lang={lang} setLang={setLang} erreur={error} />;
+  }
+
   return (
-    <div className="flex min-h-dvh flex-col bg-stone-100 text-stone-900">
-      <header className="border-b border-stone-200 bg-white">
+    // hauteur exacte du viewport : seule la zone des messages défile, sinon le
+    // footer rogne la fin des réponses (d'autant plus que le header FR est haut)
+    <div className="flex h-dvh flex-col overflow-hidden bg-stone-100 text-stone-900">
+      <header className="shrink-0 border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <div>
             <h1 className="text-xl font-bold text-emerald-800">{t.appTitle}</h1>
@@ -205,6 +286,13 @@ export default function App() {
               className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
             >
               {t.newChat}
+            </button>
+            <button
+              onClick={() => void deconnexion()}
+              title={utilisateur.email ?? ''}
+              className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
+            >
+              {t.signOut}
             </button>
             <div className="flex overflow-hidden rounded-md border border-stone-300">
               {LANGS.map((l) => (
@@ -223,7 +311,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-3xl px-4 py-6">
         {messages.length === 0 && !loading && (
           <div className="mt-16 text-center">
             <h2 className="text-2xl font-semibold text-stone-700">{t.emptyTitle}</h2>
@@ -332,10 +421,11 @@ export default function App() {
             {error}
           </div>
         )}
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
       </main>
 
-      <footer className="sticky bottom-0 border-t border-stone-200 bg-white">
+      <footer className="shrink-0 border-t border-stone-200 bg-white">
         <form
           className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3"
           onSubmit={(e) => {

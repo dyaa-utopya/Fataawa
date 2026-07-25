@@ -19,6 +19,12 @@ export interface Dict {
   close: string;
   openFull: string;
   noImage: string;
+  signIn: string;
+  signInHint: string;
+  signOut: string;
+  notAllowed: string;
+  sessionExpired: string;
+  loading: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -45,6 +51,12 @@ export const DICT: Record<Lang, Dict> = {
     close: 'Fermer',
     openFull: 'Ouvrir en taille réelle',
     noImage: 'Page scannée non disponible',
+    signIn: 'Se connecter avec Google',
+    signInHint: 'Accès réservé. Connectez-vous avec le compte autorisé.',
+    signOut: 'Déconnexion',
+    notAllowed: 'Ce compte n’est pas autorisé à accéder à Fataawa.',
+    sessionExpired: 'Session expirée, reconnectez-vous.',
+    loading: 'Chargement…',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -70,6 +82,12 @@ export const DICT: Record<Lang, Dict> = {
     close: 'Close',
     openFull: 'Open full size',
     noImage: 'Scanned page unavailable',
+    signIn: 'Sign in with Google',
+    signInHint: 'Restricted access. Sign in with the authorised account.',
+    signOut: 'Sign out',
+    notAllowed: 'This account is not allowed to access Fataawa.',
+    sessionExpired: 'Session expired, please sign in again.',
+    loading: 'Loading…',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -94,6 +112,12 @@ export const DICT: Record<Lang, Dict> = {
     close: 'إغلاق',
     openFull: 'عرض بالحجم الكامل',
     noImage: 'الصفحة الممسوحة غير متوفرة',
+    signIn: 'تسجيل الدخول بحساب Google',
+    signInHint: 'الدخول مقيّد. سجّل الدخول بالحساب المصرّح له.',
+    signOut: 'تسجيل الخروج',
+    notAllowed: 'هذا الحساب غير مصرّح له بالدخول إلى فتاوى.',
+    sessionExpired: 'انتهت الجلسة، أعد تسجيل الدخول.',
+    loading: 'جارٍ التحميل…',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',
