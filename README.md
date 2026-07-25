@@ -130,6 +130,40 @@ La clé Gemini est un secret Secret Manager (`gemini-api-key`), restreinte à
 `generativelanguage.googleapis.com`. Rotation = nouvelle version du secret +
 redéploiement ; le code ne la voit que par variable d'environnement.
 
+## Refaire un livre déjà traité (rejeu)
+
+Les recueils structurés par l'ancien pipeline Apps Script souffrent de deux défauts :
+les fatwas à cheval sur deux pages étaient **dupliquées**, et leur thème déduit d'un
+seul fragment. Le pipeline actuel corrige cela (fenêtre de lecture de 3 pages,
+sous-questions), mais **seulement pour ce qu'il traite lui-même** : les fatwas déjà en
+base restent en l'état. D'où le rejeu.
+
+Principe : le worker écrit dans une **collection neuve** (`FATWAS_COLLECTION`) pendant
+que l'API continue de servir la collection en production. On compare, puis on bascule —
+et le retour arrière n'est qu'une variable d'environnement.
+
+```bash
+# 1. worker en écriture sur la collection neuve (lot d'ingestion élargi)
+IMAGE_TAG=<tag> FATWAS_COLLECTION=fatawas_v2 INGEST_BATCH=2000 \
+  python3 infra/deploy_via_api.py deploy_worker
+
+# 2. rejeu d'un livre pilote (RESET=1 repart d'un état propre)
+IMAGE_TAG=<tag> FATWAS_COLLECTION=fatawas_v2 RESET=1 INGESTIONS=8 \
+  LIVRES='فتاوى_اللجنة_الدائمة_للبحوث_العلمية_والأفتاء_1' \
+  python3 infra/deploy_via_api.py replay
+
+# 3. les neuf autres (LIVRES vide = tous ceux présents sous legacy/)
+IMAGE_TAG=<tag> FATWAS_COLLECTION=fatawas_v2 RESET=1 INGESTIONS=60 \
+  python3 infra/deploy_via_api.py replay
+
+# 4. bascule de la lecture, une fois la qualité validée
+IMAGE_TAG=<tag> FATWAS_COLLECTION=fatawas_v2 python3 infra/deploy_via_api.py deploy_api
+```
+
+Le job copie les scans `legacy/{livre}/` → `inbox/{livre}/` (côté GCS, sans transfert)
+puis laisse l'ingestion faire son travail. Prévoir un index vectoriel sur la nouvelle
+collection (`embedding_v2`, 768, cosine) avant la bascule.
+
 ## Comportement de la recherche
 
 1. **Triage** : le modèle lit la question, la reformule en question autonome (les
