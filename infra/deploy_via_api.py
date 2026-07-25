@@ -649,6 +649,8 @@ def step_replay(images: dict[str, str]) -> None:
             "LIVRES": os.environ.get("LIVRES", ""),
             "INGESTIONS": os.environ.get("INGESTIONS", "30"),
             "RESET": os.environ.get("RESET", ""),
+            # rejeu du seul découpage : l'OCR déjà fait est conservé
+            "RESET_STRUCT": os.environ.get("RESET_STRUCT", ""),
         },
         "rejeu des livres",
     )

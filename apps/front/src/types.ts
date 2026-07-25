@@ -1,9 +1,25 @@
-export interface AskSource {
+/** Ce qu'il faut pour ouvrir le scan d'une fatwa dans la visionneuse. */
+export interface ScanRef {
   numero_fatwa: string;
-  citation_arabe: string;
   livre_titre: string;
-  numero_page: number | null;
   url_image: string | null;
+}
+
+export interface AskSource extends ScanRef {
+  citation_arabe: string;
+  numero_page: number | null;
+}
+
+/** Résultat de la recherche directe : la fatwa telle quelle, sans reformulation. */
+export interface ResultatRecherche extends ScanRef {
+  id: string;
+  sous_question: string;
+  sujet: string;
+  sous_sujet: string;
+  extrait: string;
+  texte: string;
+  question: string;
+  reponse: string;
 }
 
 export interface AskAnswerResponse {

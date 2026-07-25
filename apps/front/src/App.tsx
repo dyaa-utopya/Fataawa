@@ -3,7 +3,9 @@ import type { User } from 'firebase/auth';
 import { ApiError, ask } from './api.js';
 import { observerUtilisateur } from './auth.js';
 import { DICT, type Lang } from './i18n.js';
-import type { AskSource, ChatMessage } from './types.js';
+import PageViewer from './PageViewer.js';
+import Recherche from './Recherche.js';
+import type { AskSource, ScanRef, ChatMessage } from './types.js';
 import Upload from './Upload.js';
 
 const LANGS: Array<{ code: Lang; label: string }> = [
@@ -11,71 +13,6 @@ const LANGS: Array<{ code: Lang; label: string }> = [
   { code: 'en', label: 'EN' },
   { code: 'ar', label: 'ع' },
 ];
-
-/** Visionneuse plein écran de la page scannée. */
-function PageViewer({
-  source,
-  t,
-  onClose,
-}: {
-  source: AskSource;
-  t: (typeof DICT)['fr'];
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col bg-stone-900/90 p-3 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 pb-2 text-white">
-        {/* pas de numéro de page affiché : le rang du scan ne correspond pas à
-            la pagination imprimée du livre, le scan lui-même fait référence */}
-        <p className="text-sm font-medium" dir="auto">
-          {t.fatwa} {source.numero_fatwa || '—'}
-          {source.livre_titre && ` · ${source.livre_titre}`}
-        </p>
-        <div className="flex items-center gap-2">
-          {source.url_image && (
-            <a
-              href={source.url_image}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="rounded-md bg-white/15 px-2.5 py-1.5 text-xs hover:bg-white/25"
-            >
-              {t.openFull}
-            </a>
-          )}
-          <button onClick={onClose} className="rounded-md bg-white/15 px-2.5 py-1.5 text-xs hover:bg-white/25">
-            ✕ {t.close}
-          </button>
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
-        {source.url_image ? (
-          <img
-            src={source.url_image}
-            alt={`${t.fatwa} ${source.numero_fatwa}`}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-full max-w-full rounded bg-white object-contain shadow-2xl"
-          />
-        ) : (
-          <p className="text-sm text-stone-300">{t.noImage}</p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function SourceCard({
   source,
@@ -125,9 +62,11 @@ export default function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pageOuverte, setPageOuverte] = useState<AskSource | null>(null);
+  const [pageOuverte, setPageOuverte] = useState<ScanRef | null>(null);
   const [utilisateur, setUtilisateur] = useState<User | null>(null);
-  const [vue, setVue] = useState<'chat' | 'ajout'>('chat');
+  // deux usages distincts qui cohabitent : poser une question, ou fouiller
+  // directement le corpus ; l'espace d'ajout reste à part, sous connexion
+  const [vue, setVue] = useState<'chat' | 'recherche' | 'ajout'>('chat');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => observerUtilisateur(setUtilisateur), []);
@@ -207,18 +146,20 @@ export default function App() {
     // footer rogne la fin des réponses (d'autant plus que le header FR est haut)
     <div className="flex h-dvh flex-col overflow-hidden bg-stone-100 text-stone-900">
       <header className="shrink-0 border-b border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
             <h1 className="text-xl font-bold text-emerald-800">{t.appTitle}</h1>
             <p className="text-xs text-stone-500">{t.tagline}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={nouvelleConversation}
-              className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
-            >
-              {t.newChat}
-            </button>
+            {vue === 'chat' && (
+              <button
+                onClick={nouvelleConversation}
+                className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
+              >
+                {t.newChat}
+              </button>
+            )}
             <button
               onClick={() => setVue('ajout')}
               title={t.addFatwas}
@@ -241,9 +182,31 @@ export default function App() {
             </div>
           </div>
         </div>
+        {/* les deux usages cohabitent : on passe de l'un à l'autre sans rien perdre */}
+        <div className="mx-auto max-w-3xl px-4 pb-2">
+          <div className="inline-flex overflow-hidden rounded-lg border border-stone-300">
+            {([
+              ['chat', t.askTab],
+              ['recherche', t.searchTab],
+            ] as const).map(([code, label]) => (
+              <button
+                key={code}
+                onClick={() => setVue(code)}
+                className={`px-3 py-1.5 text-xs font-medium ${
+                  vue === code ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {vue === 'recherche' ? (
+          <Recherche t={t} onVoirPage={setPageOuverte} />
+        ) : (
         <div className="mx-auto w-full max-w-3xl px-4 py-6">
         {messages.length === 0 && !loading && (
           <div className="mt-16 text-center">
@@ -355,8 +318,10 @@ export default function App() {
         )}
           <div ref={bottomRef} />
         </div>
+        )}
       </main>
 
+      {vue === 'chat' && (
       <footer className="shrink-0 border-t border-stone-200 bg-white">
         <form
           className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3"
@@ -384,6 +349,7 @@ export default function App() {
           {t.disclaimer}
         </p>
       </footer>
+      )}
 
       {pageOuverte && (
         <PageViewer source={pageOuverte} t={t} onClose={() => setPageOuverte(null)} />

@@ -52,6 +52,20 @@ export interface Dict {
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
+  askTab: string;
+  searchTab: string;
+  searchTitle: string;
+  searchBody: string;
+  searchPlaceholder: string;
+  searchAction: string;
+  searching: string;
+  noResults: string;
+  resultsCount: string;
+  subQuestion: string;
+  questionLabel: string;
+  answerLabel: string;
+  readMore: string;
+  readLess: string;
 }
 
 export const DICT: Record<Lang, Dict> = {
@@ -112,6 +126,21 @@ export const DICT: Record<Lang, Dict> = {
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
       'Assistant documentaire : il rapporte le contenu des fatwas citées et ne remplace pas l’avis d’un savant.',
+    askTab: 'Question / réponse',
+    searchTab: 'Recherche',
+    searchTitle: 'Recherche dans les fatwas',
+    searchBody:
+      'Les fatwas sont rendues telles qu’elles sont écrites, sans réponse rédigée : décrivez le sujet cherché, en français ou en arabe.',
+    searchPlaceholder: 'Mot-clé ou sujet…',
+    searchAction: 'Rechercher',
+    searching: 'Recherche en cours…',
+    noResults: 'Aucune fatwa trouvée',
+    resultsCount: 'fatwas trouvées',
+    subQuestion: 'Question',
+    questionLabel: 'Question',
+    answerLabel: 'Réponse',
+    readMore: 'Lire la fatwa',
+    readLess: 'Réduire',
   },
   en: {
     appTitle: 'Fataawa',
@@ -169,6 +198,21 @@ export const DICT: Record<Lang, Dict> = {
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
       'Documentary assistant: it reports the content of the cited fatwas and does not replace a scholar’s advice.',
+    askTab: 'Question & answer',
+    searchTab: 'Search',
+    searchTitle: 'Search the fatwas',
+    searchBody:
+      'Fatwas are shown exactly as written, with no generated answer: describe the topic you are looking for, in English or in Arabic.',
+    searchPlaceholder: 'Keyword or topic…',
+    searchAction: 'Search',
+    searching: 'Searching…',
+    noResults: 'No fatwa found',
+    resultsCount: 'fatwas found',
+    subQuestion: 'Question',
+    questionLabel: 'Question',
+    answerLabel: 'Answer',
+    readMore: 'Read the fatwa',
+    readLess: 'Collapse',
   },
   ar: {
     appTitle: 'فتاوى',
@@ -223,5 +267,19 @@ export const DICT: Record<Lang, Dict> = {
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',
+    askTab: 'سؤال وجواب',
+    searchTab: 'بحث',
+    searchTitle: 'البحث في الفتاوى',
+    searchBody: 'تُعرض الفتاوى كما هي دون صياغة جديدة: اكتب الموضوع الذي تبحث عنه.',
+    searchPlaceholder: 'كلمة مفتاحية أو موضوع…',
+    searchAction: 'بحث',
+    searching: 'جارٍ البحث…',
+    noResults: 'لم يُعثر على فتوى',
+    resultsCount: 'فتوى',
+    subQuestion: 'السؤال',
+    questionLabel: 'السؤال',
+    answerLabel: 'الجواب',
+    readMore: 'قراءة الفتوى',
+    readLess: 'طيّ',
   },
 };

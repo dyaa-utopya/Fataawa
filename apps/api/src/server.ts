@@ -11,6 +11,7 @@ import { adminRouter } from './admin.js';
 import { VectorIndexError, handleAsk } from './ask.js';
 import { parseAuthConfig } from './auth.js';
 import { TokenBucketLimiter } from './ratelimit.js';
+import { rechercher } from './search.js';
 import { asyncHandler } from './util.js';
 
 /**
@@ -74,6 +75,15 @@ app.get('/healthz', (_req, res) => {
 app.get('/', (_req, res) => {
   res.status(200).json({ service: 'fataawa-api', routes: ['/v1/ask', '/v1/images/:livreId/:pageId'] });
 });
+
+// Recherche directe : les fatwas telles quelles, sans réponse générée.
+v1.post(
+  '/search',
+  limiterMw,
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await rechercher(cfg, req.body));
+  }),
+);
 
 v1.use('/admin', adminRouter(cfg, auth));
 

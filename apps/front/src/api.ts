@@ -1,5 +1,11 @@
 import { jeton } from './auth.js';
-import type { AskResponse, FichierPret, LivreResume, Verification } from './types.js';
+import type {
+  AskResponse,
+  FichierPret,
+  LivreResume,
+  ResultatRecherche,
+  Verification,
+} from './types.js';
 
 export class ApiError extends Error {
   constructor(readonly status: number) {
@@ -75,4 +81,18 @@ export async function ask(
   });
   if (!res.ok) throw new ApiError(res.status);
   return (await res.json()) as AskResponse;
+}
+
+/**
+ * Recherche directe : renvoie les fatwas elles-mêmes, sans réponse rédigée.
+ * Publique elle aussi, et indépendante de la conversation en cours.
+ */
+export async function rechercher(requete: string, limite = 15): Promise<ResultatRecherche[]> {
+  const res = await fetch('/api/v1/search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ requete, limite }),
+  });
+  if (!res.ok) throw new ApiError(res.status);
+  return ((await res.json()) as { resultats: ResultatRecherche[] }).resultats;
 }
