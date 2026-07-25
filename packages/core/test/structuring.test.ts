@@ -3,6 +3,7 @@ import {
   buildStructurationPrompt,
   fatwaIdFrom,
   normaliseNumeroFatwa,
+  normaliseSousQuestion,
   parseStructurationJson,
   sanitizeIdPart,
 } from '../src/structuring.js';
@@ -109,7 +110,7 @@ describe('identifiants de fatwas', () => {
     expect(fatwaIdFrom('livreA', '', 'p0001-0')).toBe('livreA_p0001-0');
   });
   it('distingue les sous-questions d’une même fatwa', () => {
-    expect(fatwaIdFrom('livreA', '1881', 'p-0', 'أ')).toBe('livreA_1881_أ');
+    expect(fatwaIdFrom('livreA', '1881', 'p-0', 'أ')).toBe('livreA_1881_1');
     expect(fatwaIdFrom('livreA', '1881', 'p-0', '٢')).toBe('livreA_1881_2');
     // même fatwa, deux questions → deux documents distincts
     expect(fatwaIdFrom('livreA', '1881', 'p-0', '1')).not.toBe(
@@ -117,6 +118,35 @@ describe('identifiants de fatwas', () => {
     );
     // rejouer la même sous-question réécrit le même document
     expect(fatwaIdFrom('livreA', '1881', 'p-9', '1')).toBe(fatwaIdFrom('livreA', '1881', 'p-3', '1'));
+  });
+});
+
+describe('normaliseSousQuestion', () => {
+  it('ramène les ordinaux arabes à leur rang', () => {
+    expect(normaliseSousQuestion('الأول')).toBe('1');
+    expect(normaliseSousQuestion('الثاني')).toBe('2');
+    expect(normaliseSousQuestion('الخامس')).toBe('5');
+  });
+  it('ramène les lettres-puces à leur rang', () => {
+    expect(normaliseSousQuestion('أ')).toBe('1');
+    expect(normaliseSousQuestion('ب')).toBe('2');
+    expect(normaliseSousQuestion('(ج)')).toBe('3');
+  });
+  it('accepte les chiffres, latins comme arabes', () => {
+    expect(normaliseSousQuestion('2')).toBe('2');
+    expect(normaliseSousQuestion('٣')).toBe('3');
+    expect(normaliseSousQuestion('السؤال 4')).toBe('4');
+    expect(normaliseSousQuestion('07')).toBe('7');
+  });
+  it('deux écritures du même repère donnent le même rang', () => {
+    // c'est ce qui empêche la même sous-question d'être créée deux fois
+    expect(normaliseSousQuestion('الثاني')).toBe(normaliseSousQuestion('٢'));
+    expect(normaliseSousQuestion('ب')).toBe(normaliseSousQuestion('2'));
+  });
+  it('vide reste vide, repère inconnu est conservé', () => {
+    expect(normaliseSousQuestion('')).toBe('');
+    expect(normaliseSousQuestion('  ')).toBe('');
+    expect(normaliseSousQuestion('تكميل')).toBe('تكميل');
   });
 });
 

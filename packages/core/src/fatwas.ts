@@ -80,6 +80,8 @@ export interface FatwaPipelineWrite {
   livreId: string;
   numero: string;
   sousQuestion?: string;
+  /** Nom de fichier du scan, décrit comme sur les fatwas historiques. */
+  imageSource?: string;
   sujetPrincipal: string;
   sousSujet: string;
   texte: string;
@@ -103,6 +105,8 @@ export function fromPipeline(f: FatwaPipelineWrite): FatwaStored {
     pages: f.pages,
     numero_page: premiere ? String(premiere.numero) : '',
     gcs_path: premiere?.gcsPath ?? '',
+    // même description du scan que les fatwas historiques, en plus du chemin
+    image_source: f.imageSource ?? '',
     statut: 'STRUCTUREE',
     source: 'pipeline',
   };

@@ -228,6 +228,36 @@ export function normaliseNumeroFatwa(numero: string): string {
   return normalizeDigits(numero).trim();
 }
 
+/**
+ * Repères de sous-question tels qu'imprimés dans les recueils, ramenés à un
+ * rang numérique. Sans cette normalisation, la même question extraite deux
+ * fois avec deux écritures différentes (« الثاني » puis « 2 ») produirait deux
+ * documents au lieu d'un. Le repère d'origine reste lisible dans le texte de
+ * la fatwa.
+ */
+const RANGS_ARABES: Record<string, number> = {
+  // ordinaux
+  الأول: 1, الاول: 1, الثاني: 2, الثانى: 2, الثالث: 3, الرابع: 4, الخامس: 5,
+  السادس: 6, السابع: 7, الثامن: 8, التاسع: 9, العاشر: 10,
+  // lettres de l'abjad utilisées comme puces
+  أ: 1, ا: 1, ب: 2, ج: 3, د: 4, ه: 5, و: 6, ز: 7, ح: 8, ط: 9, ي: 10,
+};
+
+export function normaliseSousQuestion(brut: string): string {
+  const nettoye = normalizeDigits(brut)
+    .replace(/[()[\].:،,-]/g, ' ')
+    .trim();
+  if (nettoye === '') return '';
+  const chiffres = nettoye.match(/\d+/);
+  if (chiffres?.[0]) return String(Number.parseInt(chiffres[0], 10));
+  for (const mot of nettoye.split(/\s+/)) {
+    const rang = RANGS_ARABES[mot];
+    if (rang !== undefined) return String(rang);
+  }
+  // repère non reconnu : conservé tel quel plutôt que perdu
+  return sanitizeIdPart(nettoye);
+}
+
 /** Partie d'ID de document Firestore sûre (pas de /, espaces, etc.). */
 export function sanitizeIdPart(value: string): string {
   return value
@@ -252,6 +282,6 @@ export function fatwaIdFrom(
 ): string {
   const numero = sanitizeIdPart(normaliseNumeroFatwa(numeroBrut));
   const part = numero !== '' ? numero : sanitizeIdPart(fallbackSuffix);
-  const sous = sanitizeIdPart(normaliseNumeroFatwa(sousQuestion));
+  const sous = normaliseSousQuestion(sousQuestion);
   return `${sanitizeIdPart(livreId)}_${part !== '' ? part : 'x'}${sous !== '' ? `_${sous}` : ''}`;
 }

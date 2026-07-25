@@ -79,7 +79,7 @@ export function pdfSplitRouter(cfg: WorkerConfig): Router {
         let dejaLa = 0;
         const { fichiers } = await pdfRendrePages(local, sortie, depuis, derniere, cfg.pdfDpi);
         for (const f of fichiers) {
-          const objet = `${cfg.gcsInboxPrefix}${livreId}/${nomPageRendue(f.page)}`;
+          const objet = `${cfg.gcsInboxPrefix}${livreId}/${nomPageRendue(livreId, f.page)}`;
           if (await gcsExists(cfg.gcsBucket, objet)) {
             dejaLa++;
             continue;

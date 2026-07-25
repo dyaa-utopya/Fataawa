@@ -14,6 +14,7 @@ import {
   fatwaRef,
   fromPipeline,
   geminiStructurePage,
+  normaliseSousQuestion,
   livreRef,
   logger,
   pagesCol,
@@ -240,7 +241,9 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 ...fromPipeline({
                   livreId,
                   numero: fatwa.numero,
-                  sousQuestion: fatwa.sousQuestion,
+                  // rang normalisé : identifie la sous-question sans ambiguïté
+                  sousQuestion: normaliseSousQuestion(fatwa.sousQuestion),
+                  imageSource: page.gcsPath.slice(page.gcsPath.lastIndexOf('/') + 1),
                   sujetPrincipal: fatwa.sujetPrincipal,
                   sousSujet: fatwa.sousSujet,
                   texte: fatwa.texteComplet,

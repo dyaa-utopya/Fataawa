@@ -81,7 +81,12 @@ export async function pdfRendrePages(
   return { fichiers };
 }
 
-/** Nom d'objet d'une page rendue : numéro zéro-paddé, exploitable par l'ingestion. */
-export function nomPageRendue(page: number): string {
-  return `page_${String(page).padStart(4, '0')}.png`;
+/**
+ * Nom d'objet d'une page rendue : `{livre}_Page0445.png`.
+ * Le nom du livre y figure — le fichier reste identifiable hors de son dossier,
+ * comme les scans historiques — et le numéro est zéro-paddé pour que l'ordre
+ * alphabétique soit l'ordre de lecture.
+ */
+export function nomPageRendue(livreId: string, page: number): string {
+  return `${livreId}_Page${String(page).padStart(4, '0')}.png`;
 }
