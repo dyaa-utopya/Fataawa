@@ -7,8 +7,8 @@
 > répondre pendant toute la migration), on lui adjoint un second service privé pour les
 > traitements.
 
-Document de discussion : les décisions sont argumentées, les points encore ouverts sont
-listés en §10. Aucun code n'est écrit tant que ces choix ne sont pas validés.
+Document de référence : les décisions sont argumentées ; les six arbitrages qui étaient
+ouverts ont été tranchés le 25/07/2026 et sont consignés en §10.
 
 ---
 
@@ -22,7 +22,7 @@ listés en §10. Aucun code n'est écrit tant que ces choix ne sont pas validés
 | `Firestore.gs` | Master Sheet → POST `{action:"UPLOAD", secret_token}` vers Cloud Run, « ✅ EN LIGNE » colonne I | Disparaît : les fatwas naissent directement dans Firestore |
 | `Code.gs` (`processUserQuestion`) | GAS orchestre le RAG : POST `{question}` → contexte → Gemini côté GAS → images **base64** via `DriveApp.getFilesByName()` | `POST /v1/ask` : retrieval + génération **côté serveur**, images en **URLs signées GCS** |
 | `Index.html` / `JavaScript.html` / `Stylesheet.html` | Webapp HtmlService `ANYONE_ANONYMOUS`, exécutée avec les droits du déployeur | SPA statique sur **Firebase Hosting** (même UI trilingue FR/EN/AR, RTL, portée quasi telle quelle) |
-| `CONFIG.gs` | Clés Gemini/Vision en dur, private key du SA Firebase en clair, « barillet rotatif » de clés | **Vertex AI** (auth IAM → zéro clé API), Secret Manager pour le résiduel éventuel |
+| `CONFIG.gs` | Clés Gemini/Vision en dur, private key du SA Firebase en clair, « barillet rotatif » de clés | **Une seule clé (API Gemini) dans Secret Manager** ; Vision et Firebase en auth IAM sans clé |
 
 Principes directeurs :
 
@@ -47,7 +47,7 @@ flowchart LR
     ING --> FS[("Firestore")]
     ING --> QOCR[["queue ocr"]]
   end
-  QOCR --> OCR["worker /tasks/ocr-page<br/>Gemini via Vertex, fallback Vision"]
+  QOCR --> OCR["worker /tasks/ocr-page<br/>Gemini (API), fallback Vision"]
   OCR --> FS
   OCR --> QSTR[["queue structuration<br/>(1 tâche active / livre)"]]
   QSTR --> STR["worker /tasks/structurer<br/>curseur ordonné par livre"]
@@ -58,22 +58,24 @@ flowchart LR
     U["SPA trilingue<br/>Firebase Hosting"] -->|"rewrite /api/**"| API["api (= chercherf)<br/>POST /v1/ask"]
   end
   API -->|KNN vector search| FS
-  API -->|génération groundée| VAI["Vertex AI Gemini"]
+  API -->|génération groundée| GEM["API Gemini"]
   API -->|URLs signées| GCS
 ```
 
 Deux services Cloud Run, un seul dépôt :
 
-- **`chercherf`** (existant, public) → devient l'**API** : `/v1/ask`, `/v1/images/:id`
-  (redirection URL signée), routes legacy conservées le temps de la migration
-  (`{question}` → `{contexte}`, `{action:"UPLOAD"}`).
+- **`chercherf`** (existant, public) → devient l'**API** : `/v1/ask` (conversationnel :
+  `conversationId` + historique, cf. §5), `/v1/images/:id` (redirection URL signée),
+  routes legacy conservées le temps de la migration (`{question}` → `{contexte}`,
+  `{action:"UPLOAD"}`).
 - **`fataawa-worker`** (nouveau, **ingress interne uniquement**) : `/tasks/ingestion`,
   `/tasks/ocr-page`, `/tasks/structurer`, `/tasks/embed`. Invoqué exclusivement par
   Cloud Tasks / Cloud Scheduler avec un jeton OIDC.
 
-Même image, deux points d'entrée : la séparation isole les droits (le worker a accès
-Drive/GCS/Vertex en écriture, l'API n'a que Firestore-lecture + signature GCS + Vertex)
-et permet des réglages distincts (concurrence, CPU, timeout 15 min côté worker).
+Même image, deux points d'entrée : la séparation isole les droits (le worker écrit dans
+Drive/GCS/Firestore ; l'API se limite à Firestore, aux conversations et à la signature
+d'URLs GCS — les deux consomment la clé Gemini via Secret Manager) et permet des réglages
+distincts (concurrence, CPU, timeout 15 min côté worker).
 
 ---
 
@@ -96,10 +98,11 @@ et permet des réglages distincts (concurrence, CPU, timeout 15 min côté worke
   `DriveApp.getFilesByName()` (recherche globale par nom !) : la fatwa référence
   directement ses pages, qui portent leur chemin GCS.
 
-*Option long terme (hors périmètre migration)* : upload direct depuis une UI admin vers
-GCS (URL signée d'upload) + Eventarc `object.finalize`, ce qui supprimerait Drive. On ne
-le fait pas maintenant : Drive est l'interface connue des opérateurs, coût de changement
-inutile pendant la migration.
+*Confirmé comme cible produit (phase 5)* : l'import de livres se fera aussi **directement
+depuis la plateforme** (upload de scans via URL signée GCS). L'ingestion est donc conçue
+**agnostique de la source dès la phase 1** : connecteur Drive aujourd'hui, endpoint
+d'upload demain — mêmes documents `pages/`, même queue derrière. Drive reste la porte
+d'entrée pendant toute la migration.
 
 ---
 
@@ -150,10 +153,15 @@ fatwas/{numeroFatwaNormalise}             // ID = dédup (remplace la colonne A 
   pages: [{ livreId, numeroPage, gcsPath }]   // → URLs signées côté API
   embedding: Vector<768>
   statut: STRUCTUREE | EN_LIGNE, majAt
+
+conversations/{conversationId}            // chat public sans login : ID anonyme généré côté client
+  langue, creeAt, majAt
+conversations/{conversationId}/messages/{seq}
+  role: user | assistant, texte, sources: [...], suggestions: [...], at
 ```
 
 - **Vector search : Firestore natif** (`findNearest`, index vectoriel, cosine).
-  Embeddings **`gemini-embedding-001` via Vertex, réduits à 768 dimensions**
+  Embeddings **`gemini-embedding-001` via l'API Gemini, réduits à 768 dimensions**
   (multilingue, bon sur l'arabe, et 768 reste sous la limite Firestore de 2048 tout en
   divisant le coût de stockage). Pour un corpus de l'ordre de 10³–10⁵ fatwas c'est
   largement suffisant ; on ne sort l'artillerie Vertex AI Vector Search que si le corpus
@@ -191,22 +199,32 @@ C'est la transposition propre de ce que `masterSupervisor()` fait aujourd'hui à
 
 ---
 
-## 7. IA — Vertex AI, un seul modèle, zéro clé API
+## 7. IA — API Gemini conservée, une seule clé, dans Secret Manager
 
-- **Tous les appels Gemini passent par Vertex AI** dans `looker-studio-458310` :
-  authentification IAM du service account, **plus aucune clé API** → le barillet
-  `getCleApi()/changerCleApi()` disparaît, remplacé par le lissage Cloud Tasks + backoff
-  (`Retry-After` honoré) + quota projet.
+**Décision actée : on reste sur l'API Gemini (Developer API), pas Vertex AI** — critère :
+maîtriser les versions de modèles disponibles (c'est là que sont pilotées les variantes
+utilisées, `flash-lite` et previews). Conséquences :
+
+- Il reste **exactement un secret** dans tout le système : la clé API Gemini. Elle vit
+  dans **Secret Manager** (montée en variable d'environnement au déploiement), jamais
+  dans le code ni dans Git. Rotation = nouvelle version du secret + redéploiement.
+- Projet de la clé en **tier payant** pour des quotas RPM/TPM réels. Le barillet
+  `getCleApi()/changerCleApi()` disparaît quand même : le lissage est fait par la queue
+  `ocr` (débit plafonné) + backoff exponentiel honorant `Retry-After` sur 429.
 - **Un seul ID de modèle**, dans la config (`gemini-3.1-flash-lite`) — l'incohérence
   `-preview` d'`askGeminiToStructure()` disparaît. Changer de modèle = un changement de
   config, suivi d'un job de ré-embedding si c'est le modèle d'embedding qui change.
+- **Embeddings via la même API Gemini** (`gemini-embedding-001`, 768 dimensions) — même
+  clé, même quota, aucune dépendance Vertex.
 - **Fallback Cloud Vision conservé** pour les `finishReason: RECITATION`, via la client
-  library (auth IAM aussi, la clé Vision en dur meurt).
+  library en auth IAM (la clé Vision en dur meurt, non remplacée). Firebase Admin
+  pareil : ADC sur Cloud Run — la private key en clair meurt, non remplacée.
 - **Sorties structurées validées** : `responseSchema` côté Gemini + validation zod côté
   Node ; réponse invalide = retry avec feedback, puis quarantaine. (Aujourd'hui : parse
   optimiste du JSON.)
-- Le system prompt de grounding strict du front est conservé, mais exécuté **côté API** ;
-  le front ne voit plus que le JSON final
+- Le system prompt de grounding strict du front est conservé, mais exécuté **côté API**,
+  enrichi de l'**historique de conversation** (les N derniers tours) ; le front ne voit
+  plus que le JSON final
   `{reponse_utilisateur, suggestions_cliquables, sources_utilisees[]}` où `url_image` est
   une URL signée.
 
@@ -219,7 +237,7 @@ C'est la transposition propre de ce que `masterSupervisor()` fait aujourd'hui à
 - **Révoquer** : les clés Gemini du barillet, la clé Cloud Vision, et la **private key du
   service account Firebase** actuellement en clair dans `CONFIG.gs` (rotation côté IAM).
   Les remplaçantes temporaires pour GAS vont dans Script Properties, plus jamais dans le
-  source.
+  source. La clé Gemini définitive, unique, naît directement dans Secret Manager (§7).
 - Le dépôt Git ne contiendra **jamais** ces fichiers : le code GAS n'est archivé qu'après
   purge de `CONFIG.gs`.
 
@@ -233,8 +251,9 @@ Cible :
   ni limite et consomme les quotas du déployeur.
 - **Routes admin** (relancer un livre, vider une quarantaine…) : Firebase Auth (compte
   Google) + allowlist d'e-mails vérifiée dans un middleware.
-- **Service accounts dédiés** : `sa-api` (Firestore lecture, signature GCS, Vertex),
-  `sa-worker` (Drive lecture + move, GCS écriture, Firestore écriture, Vertex, Vision).
+- **Service accounts dédiés** : `sa-api` (Firestore lecture + conversations, signature
+  GCS, accès au secret Gemini), `sa-worker` (Drive lecture + move, GCS écriture,
+  Firestore écriture, accès au secret Gemini, Vision).
 - **Observabilité** : logs structurés (pino) avec `livreId`/`pageId` sur chaque ligne,
   Error Reporting, métrique log-based sur les mises en quarantaine → **alerte e-mail
   Cloud Monitoring** (remplace `MailApp`), petit dashboard (pages/h, taux fallback
@@ -251,10 +270,11 @@ Cible :
 | Phase | Contenu | On coupe quoi côté GAS |
 |---|---|---|
 | **0 — Hygiène** (immédiat) | Révocation/rotation des clés et de la private key ; clés temporaires en Script Properties ; export de sauvegarde des Sheets/Docs | rien |
-| **1 — Socle + OCR** | Repo TS (monorepo `apps/api`, `apps/worker`, `packages/core`), CI, bucket GCS, schéma Firestore, ingestion Drive→GCS, queue `ocr`, OCR Vertex + fallback Vision | trigger `processGeminiProduction50()` |
+| **1 — Socle + OCR** | Repo TS (monorepo `apps/api`, `apps/worker`, `packages/core`), CI, bucket GCS, schéma Firestore, clé Gemini dans Secret Manager, ingestion Drive→GCS, queue `ocr`, OCR Gemini + fallback Vision | trigger `processGeminiProduction50()` |
 | **2 — Structuration** | Queue `structuration` + curseur/`fatwaOuverte`, upsert `fatwas/`, embeddings ; **backfill one-shot** du MASTER_SHEET existant vers `fatwas/` (Cloud Run Job) | triggers `masterSupervisor()`, `pousserVersMaster()`, `exporterSheetVersCloudRun()` |
-| **3 — API + Front** | `/v1/ask` complet (retrieval + génération + URLs signées) déployé **sur `chercherf`** en gardant les routes legacy ; portage de la SPA sur Firebase Hosting ; bascule des utilisateurs | webapp GAS (`doGet`) |
+| **3 — API + Front** | `/v1/ask` conversationnel (retrieval + génération + historique + URLs signées) déployé **sur `chercherf`** en gardant les routes legacy ; front React (même UI trilingue) sur Firebase Hosting ; bascule des utilisateurs | webapp GAS (`doGet`) |
 | **4 — Nettoyage** | Suppression des routes legacy (`{question}`→`{contexte}`, `UPLOAD`+`secret_token`), resserrage quotas/alerting, archivage du projet GAS | tout le reste |
+| **5 — Plateforme** (post-migration) | Import de livres depuis l'interface (upload direct → GCS, même pipeline que Drive), écran admin complet (quarantaine, relances, suivi), enrichissement des conversations (propositions, mémoire) | — |
 
 Chaque phase laisse le système **entièrement fonctionnel** : tant que la phase 3 n'est pas
 basculée, le front GAS continue d'interroger la route legacy de `chercherf`, qui répond
@@ -266,16 +286,22 @@ d'euros/mois, dominés par les appels Gemini déjà payés.
 
 ---
 
-## 10. Questions ouvertes avant d'écrire le code
+## 10. Décisions actées (25/07/2026)
 
-1. **Volumétrie** : combien de livres / pages / fatwas aujourd'hui, et visés à 12 mois ?
-   (Valide le choix Firestore KNN vs Vertex Vector Search, et le débit de la queue `ocr`.)
-2. **Sheets** : garde-t-on un export lecture seule Firestore → Sheet pour le confort des
-   opérateurs, ou le petit écran admin suffit-il ?
-3. **Front public** : reste-t-il totalement anonyme (App Check + rate limit), ou veut-on
-   un login (même léger) ?
-4. **Nom du service** : on garde `chercherf` (URL inchangée, zéro bascule DNS) — OK, ou
-   on préfère renommer proprement (`fataawa-api`) avec une redirection ?
-5. **TypeScript** confirmé ? (Fortement recommandé vu l'absence actuelle de typage/tests.)
-6. **Vertex AI** : confirmer que le billing du projet permet d'activer l'API Vertex —
-   c'est la clef de voûte de la disparition des clés API.
+1. **Volumétrie** : ~5 000 pages aujourd'hui, en croissance. À cette échelle : ~2,5 Go de
+   PNG dans GCS (quelques centimes/mois), 5 000 documents `pages/` et quelques milliers
+   de fatwas dans Firestore — le **vector search natif Firestore est confirmé**, avec une
+   marge d'au moins ×10 ; bascule vers Vertex AI Vector Search seulement au-delà de
+   ~100 k fatwas, sans changement de schéma (l'embedding est déjà stocké).
+2. **Sheets** : **supprimés**, export de confort compris. La consultation passe par
+   l'écran admin de la plateforme.
+3. **Front public** : **sans login** — App Check + rate limiting par IP + `max-instances`.
+4. **Service** : on **garde `chercherf`**, URL inchangée.
+5. **Stack** : **TypeScript**, et le front est pensé comme une **plateforme** (React +
+   Vite + Tailwind sur Firebase Hosting) car la cible produit dépasse le moteur de
+   recherche : import de livres via l'interface (§3) et conversations multi-tours avec
+   Gemini, historique persisté et propositions (§5, §7). L'API naît conversationnelle,
+   l'ingestion naît agnostique de la source.
+6. **IA** : on **reste sur l'API Gemini** (pas Vertex) pour maîtriser les versions de
+   modèles → une seule clé, dans Secret Manager, projet en tier payant, lissage par la
+   queue `ocr` (§7).
