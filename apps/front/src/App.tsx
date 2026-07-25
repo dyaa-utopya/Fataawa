@@ -38,9 +38,10 @@ function PageViewer({
       aria-modal="true"
     >
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 pb-2 text-white">
+        {/* pas de numéro de page affiché : le rang du scan ne correspond pas à
+            la pagination imprimée du livre, le scan lui-même fait référence */}
         <p className="text-sm font-medium" dir="auto">
           {t.fatwa} {source.numero_fatwa || '—'}
-          {source.numero_page != null && ` · ${t.page} ${source.numero_page}`}
           {source.livre_titre && ` · ${source.livre_titre}`}
         </p>
         <div className="flex items-center gap-2">
@@ -98,11 +99,6 @@ function SourceCard({
           {t.fatwa} {source.numero_fatwa || '—'}
         </span>
         {source.livre_titre && <span>{source.livre_titre}</span>}
-        {source.numero_page != null && (
-          <span>
-            {t.page} {source.numero_page}
-          </span>
-        )}
       </div>
       {source.citation_arabe && (
         <p dir="rtl" className="texte-arabe mb-2 text-stone-800">

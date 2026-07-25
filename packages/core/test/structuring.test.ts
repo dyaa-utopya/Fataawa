@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStructurationPrompt,
+  commenceDans,
   fatwaIdFrom,
   normaliseNumeroFatwa,
   normaliseSousQuestion,
@@ -118,6 +119,27 @@ describe('identifiants de fatwas', () => {
     );
     // rejouer la même sous-question réécrit le même document
     expect(fatwaIdFrom('livreA', '1881', 'p-9', '1')).toBe(fatwaIdFrom('livreA', '1881', 'p-3', '1'));
+  });
+});
+
+describe('commenceDans', () => {
+  // cas réel : la fatwa 17382 commence page 363, pas 362 ; elle avait été
+  // extraite deux fois parce que le modèle l'avait lue dans le contexte
+  const debut363 = 'السؤال الثاني والثالث من الفتوى رقم (١٧٣٨٢) س ٢: كيف يمكن التخلص من الرياء والسمعة';
+  const page362 = 'ولا تنخدع بذلك، ولا ينبغي أن يمنعك ذلك من الاستمرار في القراءة بصوتك الجميل. وبالله التوفيق';
+
+  it('accepte la fatwa quand son début est dans la page', () => {
+    expect(commenceDans(debut363, `titre علاج الرياء ${debut363} ج ٢: جاهد نفسك`)).toBe(true);
+  });
+  it('écarte la fatwa vue seulement dans le contexte', () => {
+    expect(commenceDans(debut363, page362)).toBe(false);
+  });
+  it('tolère les écarts de diacritiques et de ponctuation', () => {
+    const ocr = 'السُّؤالُ الثَّاني والثَّالثُ مِن الفَتوى رقم ١٧٣٨٢ س٢ كيف يمكن التخلص من الرياء والسمعة';
+    expect(commenceDans(debut363, ocr)).toBe(true);
+  });
+  it('laisse passer un texte trop court pour décider', () => {
+    expect(commenceDans('نعم', page362)).toBe(true);
   });
 });
 

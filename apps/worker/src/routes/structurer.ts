@@ -8,6 +8,7 @@ import {
   STATUT_OCR,
   Timestamp,
   type WorkerConfig,
+  commenceDans,
   db,
   enqueueWorkerTask,
   fatwaIdFrom,
@@ -227,7 +228,20 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           // livre ne doit pas pour autant compter deux fois — d'où la
           // vérification d'existence avant écriture.
           let creations = 0;
+          let ecartees = 0;
+          // Seul le texte de la page courante (plus le fragment hérité) autorise
+          // une extraction : une fatwa vue uniquement dans les pages de contexte
+          // appartient à une page suivante et sera prise quand le curseur y sera.
+          const perimetre = `${texte}\n${fragment?.textePartiel ?? ''}`;
           for (const [i, fatwa] of resultat.fatwasCompletes.entries()) {
+            if (!commenceDans(fatwa.texteComplet, perimetre)) {
+              ecartees++;
+              log.info(
+                { pageId: pageDoc.id, numero: fatwa.numero, sousQuestion: fatwa.sousQuestion },
+                'fatwa écartée : elle commence dans une page de contexte, pas ici',
+              );
+              continue;
+            }
             const id = fatwaIdFrom(livreId, fatwa.numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
             if (!(await fatwaRef(id).get()).exists) creations++;
             // la première fatwa complète porte les pages du fragment recousu
@@ -288,9 +302,9 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           }
 
           pagesStructurees++;
-          fatwasEcrites += resultat.fatwasCompletes.length;
+          fatwasEcrites += aEmbedder.length;
           log.info(
-            { pageId: pageDoc.id, fatwas: resultat.fatwasCompletes.length, ouverte: !!nouvelleOuverte },
+            { pageId: pageDoc.id, fatwas: aEmbedder.length, ecartees, ouverte: !!nouvelleOuverte },
             'page structurée',
           );
         }

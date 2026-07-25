@@ -236,6 +236,35 @@ Ta réponse précédente était invalide (${derniereErreur}). Réponds STRICTEME
   throw new Error(`structuration invalide après 2 essais : ${derniereErreur}`);
 }
 
+/**
+ * Forme comparable d'un texte arabe : diacritiques, tatweel, ponctuation et
+ * espaces retirés. Sert à confronter ce que le modèle a restitué au texte OCR,
+ * qui diffèrent toujours un peu dans la ponctuation et les voyelles.
+ */
+export function normaliserPourComparaison(texte: string): string {
+  return texte
+    .normalize('NFC')
+    .replace(/[ً-ْٰـ]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .toLowerCase();
+}
+
+/**
+ * La fatwa commence-t-elle réellement dans le texte fourni ?
+ *
+ * Le prompt demande au modèle de n'extraire que ce qui débute dans la page
+ * courante, mais il ne s'y tient pas toujours : il lui arrive d'extraire une
+ * fatwa vue dans les pages de contexte, qui sera ensuite ré-extraite à son
+ * tour — d'où des doublons. Cette vérification est le garde-fou déterministe
+ * qui ne dépend plus de la consigne.
+ */
+export function commenceDans(texteFatwa: string, texteAutorise: string, longueur = 40): boolean {
+  const debut = normaliserPourComparaison(texteFatwa).slice(0, longueur);
+  // début trop court pour décider : on laisse passer plutôt que de perdre la fatwa
+  if (debut.length < 12) return true;
+  return normaliserPourComparaison(texteAutorise).includes(debut);
+}
+
 /** Normalise un numéro de fatwa (chiffres arabes → latins, trim). */
 export function normaliseNumeroFatwa(numero: string): string {
   return normalizeDigits(numero).trim();
