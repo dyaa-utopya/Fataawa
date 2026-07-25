@@ -15,6 +15,7 @@ import {
   fatwaRef,
   fromPipeline,
   geminiStructurePage,
+  normaliseNumeroFatwa,
   normaliseSousQuestion,
   numerosFatwaCites,
   livreRef,
@@ -167,6 +168,26 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             );
           }
           const fragment = fragmentPerime ? null : fragmentBrut;
+
+          // Page précédente : l'en-tête d'une fatwa n'est imprimé qu'une fois,
+          // au début. Sans elle, une page qui reprend par « س ٣: » perd le
+          // numéro de sa fatwa — c'était le cas de 20 % d'entre elles.
+          let pagePrecedente: { numero: number; texte: string } | null = null;
+          if (curseur > 0) {
+            const precSnap = await pagesCol(livreId)
+              .where('numero', '<', page.numero)
+              .orderBy('numero', 'desc')
+              .limit(1)
+              .get();
+            const precDoc = precSnap.docs[0];
+            if (precDoc) {
+              const prec = precDoc.data() as PageDoc;
+              const tprec = (prec.texteOcr ?? '').trim();
+              if (prec.statutOcr === STATUT_OCR.TRAITE && tprec !== '' && tprec !== '[PAGE_VIDE]') {
+                pagePrecedente = { numero: prec.numero, texte: tprec };
+              }
+            }
+          }
           let resultat;
           try {
             resultat = await geminiStructurePage(
@@ -174,6 +195,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 titreLivre: livre.titre,
                 numeroPage: page.numero,
                 textePage: texte,
+                pagePrecedente,
                 pagesSuivantes: contexte,
                 fragment,
               },
@@ -263,7 +285,8 @@ export function structurerRouter(cfg: WorkerConfig): Router {
               {
                 ...fromPipeline({
                   livreId,
-                  numero: fatwa.numero,
+                  // chiffres latins comme dans la collection historique
+                  numero: normaliseNumeroFatwa(fatwa.numero),
                   // rang normalisé : identifie la sous-question sans ambiguïté
                   sousQuestion: normaliseSousQuestion(fatwa.sousQuestion),
                   imageSource: page.gcsPath.slice(page.gcsPath.lastIndexOf('/') + 1),
