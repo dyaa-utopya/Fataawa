@@ -18,6 +18,7 @@ import {
   normaliseNumeroFatwa,
   normaliseSousQuestion,
   numerosFatwaCites,
+  porteEnTeteFatwa,
   livreRef,
   logger,
   pagesCol,
@@ -169,25 +170,12 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           }
           const fragment = fragmentPerime ? null : fragmentBrut;
 
-          // Page précédente : l'en-tête d'une fatwa n'est imprimé qu'une fois,
-          // au début. Sans elle, une page qui reprend par « س ٣: » perd le
-          // numéro de sa fatwa — c'était le cas de 20 % d'entre elles.
-          let pagePrecedente: { numero: number; texte: string } | null = null;
-          if (curseur > 0) {
-            const precSnap = await pagesCol(livreId)
-              .where('numero', '<', page.numero)
-              .orderBy('numero', 'desc')
-              .limit(1)
-              .get();
-            const precDoc = precSnap.docs[0];
-            if (precDoc) {
-              const prec = precDoc.data() as PageDoc;
-              const tprec = (prec.texteOcr ?? '').trim();
-              if (prec.statutOcr === STATUT_OCR.TRAITE && tprec !== '' && tprec !== '[PAGE_VIDE]') {
-                pagePrecedente = { numero: prec.numero, texte: tprec };
-              }
-            }
-          }
+          // L'en-tête d'une fatwa n'est imprimé qu'une fois : une page qui
+          // reprend par « س ٣: » ne porte aucun numéro. Le rattachement est
+          // fait ici, pas par le modèle — lui montrer un numéro venu d'ailleurs
+          // le conduit à le plaquer sur des fatwas étrangères.
+          const nouvelleFatwaIci = porteEnTeteFatwa(texte);
+          const numeroHerite = nouvelleFatwaIci ? '' : (livre.dernierNumeroFatwa ?? '');
           let resultat;
           try {
             resultat = await geminiStructurePage(
@@ -195,7 +183,6 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 titreLivre: livre.titre,
                 numeroPage: page.numero,
                 textePage: texte,
-                pagePrecedente,
                 pagesSuivantes: contexte,
                 fragment,
               },
@@ -252,6 +239,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           // vérification d'existence avant écriture.
           let creations = 0;
           let ecartees = 0;
+          let dernierNumero = livre.dernierNumeroFatwa ?? '';
           // Seul le texte de la page courante (plus le fragment hérité) autorise
           // une extraction : une fatwa vue uniquement dans les pages de contexte
           // appartient à une page suivante et sera prise quand le curseur y sera.
@@ -273,7 +261,11 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 'plusieurs numéros de fatwa dans un même bloc — citation ou découpage à vérifier',
               );
             }
-            const id = fatwaIdFrom(livreId, fatwa.numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
+            // rattachement : seule une fatwa sans numéro, sur une page sans
+            // en-tête, hérite du numéro de la fatwa précédente
+            const numero = normaliseNumeroFatwa(fatwa.numero) || numeroHerite;
+            if (numero !== '') dernierNumero = numero;
+            const id = fatwaIdFrom(livreId, numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
             if (!(await fatwaRef(id).get()).exists) creations++;
             // la première fatwa complète porte les pages du fragment recousu
             const pages =
@@ -286,7 +278,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 ...fromPipeline({
                   livreId,
                   // chiffres latins comme dans la collection historique
-                  numero: normaliseNumeroFatwa(fatwa.numero),
+                  numero,
                   // rang normalisé : identifie la sous-question sans ambiguïté
                   sousQuestion: normaliseSousQuestion(fatwa.sousQuestion),
                   imageSource: page.gcsPath.slice(page.gcsPath.lastIndexOf('/') + 1),
@@ -324,6 +316,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           batch.update(livreRef(livreId), {
             curseurStructuration: page.numero,
             fatwaOuverte: nouvelleOuverte,
+            dernierNumeroFatwa: dernierNumero,
             nbFatwas: FieldValue.increment(creations),
             majAt: FieldValue.serverTimestamp(),
           });

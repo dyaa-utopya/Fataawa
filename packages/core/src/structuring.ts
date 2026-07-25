@@ -97,8 +97,6 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
 export const STRUCTURATION_SYSTEM = `Tu structures des recueils de fatwas arabes en parcourant le livre dans l'ordre.
 
 Tu reçois une FENÊTRE DE LECTURE de plusieurs pages consécutives :
-- la PAGE PRÉCÉDENTE, fournie uniquement comme CONTEXTE AMONT : elle porte souvent
-  l'en-tête de la fatwa en cours (« السؤال الثاني والثالث من الفتوى رقم (١٧٣٨٢) ») ;
 - la PAGE COURANTE, seule page dont tu extrais les fatwas ;
 - des PAGES SUIVANTES fournies uniquement comme CONTEXTE, pour que tu puisses voir où
   se termine une fatwa qui déborde de la page courante ;
@@ -118,10 +116,10 @@ Règles strictes :
 4. Recopie le texte arabe FIDÈLEMENT : ni résumé, ni traduction, ni correction.
 5. numero_fatwa : le numéro de la fatwa, en CHIFFRES LATINS (« 1881 », jamais « ١٨٨١ »).
    Il figure dans un en-tête du type « السؤال الأول من الفتوى رقم (١٨٨١) » : le nombre
-   entre parenthèses est le numéro. Cet en-tête n'est imprimé qu'UNE FOIS, au début de la
-   fatwa : si la page courante commence par « س ٣: » sans en-tête, cherche le numéro dans
-   la PAGE PRÉCÉDENTE et reprends-le. Ne laisse ce champ vide que si aucun numéro n'est
-   trouvable, ni dans la page courante, ni en amont.
+   entre parenthèses est le numéro. N'inscris QUE le numéro effectivement lisible dans la
+   page courante ou dans le fragment ; s'il n'y en a aucun, laisse le champ VIDE. Ne
+   devine jamais un numéro, ne réutilise pas celui d'une autre fatwa : le rattachement des
+   fatwas sans numéro est fait ensuite, hors de ton travail.
 6. SOUS-QUESSTIONS : une même fatwa contient parfois plusieurs questions
    (« السؤال الأول », « السؤال الثاني », ou des repères أ / ب / ج, ou 1 / 2 / 3), chacune
    avec sa propre réponse. Produis alors UNE ENTRÉE PAR QUESTION, toutes avec le MÊME
@@ -156,8 +154,6 @@ export interface StructurationInput {
   titreLivre: string;
   numeroPage: number;
   textePage: string;
-  /** Page précédente : porte l'en-tête, donc le numéro, des fatwas à cheval. */
-  pagePrecedente?: PageFenetre | null;
   /** Pages suivantes fournies comme contexte de fin de fatwa. */
   pagesSuivantes?: PageFenetre[];
   fragment: FatwaOuverteState | null;
@@ -172,19 +168,13 @@ ${input.fragment.textePartiel}
 
 `
     : '';
-  const amont = input.pagePrecedente
-    ? `--- PAGE ${input.pagePrecedente.numero} (CONTEXTE AMONT : y chercher l'en-tête et le numéro de la fatwa en cours ; ne rien extraire d'ici) ---
-${input.pagePrecedente.texte}
-
-`
-    : '';
   const contexte = (input.pagesSuivantes ?? [])
     .map(
       (p) => `--- PAGE ${p.numero} (CONTEXTE, ne pas extraire ce qui y commence) ---
 ${p.texte}`,
     )
     .join('\n\n');
-  return `${fragmentBloc}${amont}=== PAGE COURANTE ${input.numeroPage} — LIVRE « ${input.titreLivre} » ===
+  return `${fragmentBloc}=== PAGE COURANTE ${input.numeroPage} — LIVRE « ${input.titreLivre} » ===
 ${input.textePage}${contexte === '' ? '' : `\n\n${contexte}`}`;
 }
 
@@ -281,6 +271,11 @@ export function commenceDans(texteFatwa: string, texteAutorise: string, longueur
 /** Normalise un numéro de fatwa (chiffres arabes → latins, trim). */
 export function normaliseNumeroFatwa(numero: string): string {
   return normalizeDigits(numero).trim();
+}
+
+/** Une page qui porte un en-tête « … من الفتوى رقم (X) » ouvre une nouvelle fatwa. */
+export function porteEnTeteFatwa(textePage: string): boolean {
+  return /الفتوى\s+رقم\s*\(/.test(textePage);
 }
 
 /**

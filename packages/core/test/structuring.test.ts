@@ -6,6 +6,7 @@ import {
   normaliseNumeroFatwa,
   normaliseSousQuestion,
   numerosFatwaCites,
+  porteEnTeteFatwa,
   parseStructurationJson,
   sanitizeIdPart,
 } from '../src/structuring.js';
@@ -81,20 +82,6 @@ describe('buildStructurationPrompt', () => {
     expect(prompt).not.toContain('CONTEXTE');
   });
 
-  it('ajoute la page précédente comme contexte amont pour retrouver le numéro', () => {
-    const prompt = buildStructurationPrompt({
-      titreLivre: 'Recueil',
-      numeroPage: 364,
-      textePage: 'س٣: شخص كان يصلي',
-      pagePrecedente: { numero: 363, texte: 'من الفتوى رقم (١٧٣٨٢) س ٢: كيف يمكن' },
-      fragment: null,
-    });
-    expect(prompt).toContain('PAGE 363 (CONTEXTE AMONT');
-    expect(prompt).toContain('١٧٣٨٢');
-    // l'amont précède la page courante, qui reste la seule extractible
-    expect(prompt.indexOf('CONTEXTE AMONT')).toBeLessThan(prompt.indexOf('PAGE COURANTE 364'));
-  });
-
   it('ajoute les pages suivantes comme contexte à ne pas extraire', () => {
     const prompt = buildStructurationPrompt({
       titreLivre: 'Recueil',
@@ -155,6 +142,16 @@ describe('commenceDans', () => {
   });
   it('laisse passer un texte trop court pour décider', () => {
     expect(commenceDans('نعم', page362)).toBe(true);
+  });
+});
+
+describe('porteEnTeteFatwa', () => {
+  it('reconnaît une page qui ouvre une nouvelle fatwa', () => {
+    expect(porteEnTeteFatwa('السؤال الثاني والثالث من الفتوى رقم (١٧٣٨٢) س ٢: كيف')).toBe(true);
+  });
+  it('ne voit pas d’en-tête sur une page de continuation', () => {
+    // c'est ce cas qui déclenche le rattachement au numéro précédent
+    expect(porteEnTeteFatwa('س٣: شخص كان يصلي، فلما انتهت الصلاة')).toBe(false);
   });
 });
 

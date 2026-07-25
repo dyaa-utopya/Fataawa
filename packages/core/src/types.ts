@@ -41,6 +41,8 @@ export interface LivreDoc {
   /** Dernière page structurée ; 0 = rien de structuré. */
   curseurStructuration: number;
   fatwaOuverte: FatwaOuverteState | null;
+  /** Numéro de la dernière fatwa rencontrée : rattache celles dont l'en-tête est resté sur une page antérieure. */
+  dernierNumeroFatwa?: string;
   /** Bail de structuration (une seule structuration active par livre). */
   structLease?: Timestamp;
   creeAt: Timestamp;
