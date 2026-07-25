@@ -103,6 +103,19 @@ def log(msg: str) -> None:
     print(f"── {msg}", flush=True)
 
 
+def retry_propagation(fn, label: str, attempts: int = 8, wait: int = 10):
+    """Rejoue une écriture IAM le temps qu'un service account fraîchement créé se propage."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except ApiError as e:
+            if i < attempts - 1 and e.status in (400, 404) and "does not exist" in e.body:
+                log(f"{label} : propagation IAM en cours, nouvel essai dans {wait}s")
+                time.sleep(wait)
+                continue
+            raise
+
+
 # ─────────────────────────────── étapes ────────────────────────────────────
 
 
@@ -176,10 +189,13 @@ def step_iam() -> None:
         ("roles/storage.objectViewer", f"serviceAccount:{num}-compute@developer.gserviceaccount.com"),
     ]
     if _merge_bindings(policy, wanted):
-        req(
-            "POST",
-            f"https://cloudresourcemanager.googleapis.com/v1/projects/{PROJECT}:setIamPolicy",
-            {"policy": policy},
+        retry_propagation(
+            lambda: req(
+                "POST",
+                f"https://cloudresourcemanager.googleapis.com/v1/projects/{PROJECT}:setIamPolicy",
+                {"policy": policy},
+            ),
+            "rôles projet",
         )
 
     log("Auto-permissions des service accounts (OIDC / signBlob)")
@@ -188,9 +204,13 @@ def step_iam() -> None:
         (SA_API, "roles/iam.serviceAccountTokenCreator"),
     ]:
         base = f"https://iam.googleapis.com/v1/projects/{PROJECT}/serviceAccounts/{email}"
-        pol = req("POST", f"{base}:getIamPolicy", {})
-        if _merge_bindings(pol, [(role, f"serviceAccount:{email}")]):
-            req("POST", f"{base}:setIamPolicy", {"policy": pol})
+
+        def _bind(base: str = base, email: str = email, role: str = role) -> None:
+            pol = req("POST", f"{base}:getIamPolicy", {})
+            if _merge_bindings(pol, [(role, f"serviceAccount:{email}")]):
+                req("POST", f"{base}:setIamPolicy", {"policy": pol})
+
+        retry_propagation(_bind, f"auto-permission {email}")
 
 
 def step_bucket() -> None:
@@ -206,15 +226,19 @@ def step_bucket() -> None:
             },
         )
     iam_url = f"https://storage.googleapis.com/storage/v1/b/{BUCKET}/iam"
-    policy = req("GET", iam_url)
-    if _merge_bindings(
-        policy,
-        [
-            ("roles/storage.objectAdmin", f"serviceAccount:{SA_WORKER}"),
-            ("roles/storage.objectViewer", f"serviceAccount:{SA_API}"),
-        ],
-    ):
-        req("PUT", iam_url, policy)
+
+    def _bucket_iam() -> None:
+        policy = req("GET", iam_url)
+        if _merge_bindings(
+            policy,
+            [
+                ("roles/storage.objectAdmin", f"serviceAccount:{SA_WORKER}"),
+                ("roles/storage.objectViewer", f"serviceAccount:{SA_API}"),
+            ],
+        ):
+            req("PUT", iam_url, policy)
+
+    retry_propagation(_bucket_iam, "IAM bucket")
 
 
 def step_queues() -> None:
@@ -250,7 +274,7 @@ def step_secret() -> None:
             f"https://secretmanager.googleapis.com/v1/projects/{PROJECT}/secrets?secretId=gemini-api-key",
             {"replication": {"automatic": {}}},
         )
-    pol = req("POST", f"{base}:getIamPolicy", {})
+    pol = req("GET", f"{base}:getIamPolicy")
     if _merge_bindings(
         pol,
         [
@@ -335,6 +359,7 @@ def _run_build(image: str, dockerfile: str, source_obj: str, label: str) -> str:
             ],
             "images": [image],
             "timeout": "1500s",
+            "options": {"logging": "CLOUD_LOGGING_ONLY"},
         },
     )
     return build["metadata"]["build"]["id"]
@@ -422,6 +447,9 @@ def _deploy_service(service_id: str, service: dict, label: str) -> str:
                 op = req("PATCH", f"{base}/{service_id}", service)
             break
         except ApiError as e:
+            if e.status == 409:  # créé entre-temps → bascule en mise à jour
+                current = {}
+                continue
             # la propagation IAM d'un service account tout juste créé peut prendre ~30 s
             if attempt < 3 and ("does not exist" in e.body or e.status == 400):
                 log(f"{label} : retry ({e.body[:120]}…)")
@@ -470,7 +498,7 @@ def step_deploy_worker(images: dict[str, str]) -> str:
     url2 = _deploy_service("fataawa-worker", worker_body(url), "worker (WORKER_URL)")
 
     base = f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/services/fataawa-worker"
-    pol = req("POST", f"{base}:getIamPolicy", {}, ok_statuses=(200,))
+    pol = req("GET", f"{base}:getIamPolicy")
     if _merge_bindings(pol, [("roles/run.invoker", f"serviceAccount:{SA_WORKER}")]):
         req("POST", f"{base}:setIamPolicy", {"policy": pol})
     log(f"worker : {url2}")
@@ -528,7 +556,7 @@ def step_deploy_api(images: dict[str, str]) -> str:
     }
     url = _deploy_service(os.environ.get("API_SERVICE", "chercherf"), body, "api")
     base = f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/services/{os.environ.get('API_SERVICE', 'chercherf')}"
-    pol = req("POST", f"{base}:getIamPolicy", {}, ok_statuses=(200,))
+    pol = req("GET", f"{base}:getIamPolicy")
     if _merge_bindings(pol, [("roles/run.invoker", "allUsers")]):
         req("POST", f"{base}:setIamPolicy", {"policy": pol})
     log(f"api : {url}")
@@ -624,13 +652,28 @@ def main() -> None:
             f" - Rappel : partager le dossier Drive racine (Éditeur) et le MASTER_SHEET (Lecteur)\n"
             f"            avec {SA_WORKER}"
         )
-    elif step in {
-        "apis": None, "iam": None, "bucket": None, "queues": None,
-        "secret": None, "indexes": None, "hosting": None,
-    }.keys():
+    elif step in {"apis", "iam", "bucket", "queues", "secret", "indexes", "hosting"}:
         globals()[f"step_{step}"]()
     elif step == "build":
         print(json.dumps(step_build(), indent=2))
+    elif step in {"deploy_worker", "scheduler", "deploy_api"}:
+        tag = os.environ.get("IMAGE_TAG", "")
+        if not tag and step != "scheduler":
+            raise SystemExit("IMAGE_TAG requis (tag des images déjà construites)")
+        images = {
+            "worker": f"{REGION}-docker.pkg.dev/{PROJECT}/fataawa/worker:{tag}",
+            "api": f"{REGION}-docker.pkg.dev/{PROJECT}/fataawa/api:{tag}",
+        }
+        if step == "deploy_worker":
+            step_deploy_worker(images)
+        elif step == "deploy_api":
+            step_deploy_api(images)
+        else:
+            worker = req(
+                "GET",
+                f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/services/fataawa-worker",
+            )
+            step_scheduler(worker["uri"])
     else:
         raise SystemExit(f"étape inconnue : {step}")
 
