@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   FieldValue,
   type FatwaOuverteState,
+  type FatwaStored,
   type LivreDoc,
   type PageDoc,
   type PageSourceRef,
@@ -174,8 +175,12 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           // reprend par « س ٣: » ne porte aucun numéro. Le rattachement est
           // fait ici, pas par le modèle — lui montrer un numéro venu d'ailleurs
           // le conduit à le plaquer sur des fatwas étrangères.
-          const nouvelleFatwaIci = porteEnTeteFatwa(texte);
-          const numeroHerite = nouvelleFatwaIci ? '' : (livre.dernierNumeroFatwa ?? '');
+          // Une page peut à la fois achever une fatwa et en ouvrir une autre :
+          // seul un en-tête EN TÊTE DE PAGE signifie qu'aucune continuation ne
+          // la précède. Sinon la première fatwa extraite est une suite, et
+          // hérite du numéro en cours.
+          const ouvreParEnTete = porteEnTeteFatwa(texte.slice(0, 200));
+          const numeroHerite = ouvreParEnTete ? '' : (livre.dernierNumeroFatwa ?? '');
           let resultat;
           try {
             resultat = await geminiStructurePage(
@@ -261,12 +266,33 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 'plusieurs numéros de fatwa dans un même bloc — citation ou découpage à vérifier',
               );
             }
-            // rattachement : seule une fatwa sans numéro, sur une page sans
-            // en-tête, hérite du numéro de la fatwa précédente
-            const numero = normaliseNumeroFatwa(fatwa.numero) || numeroHerite;
+            // rattachement : seule la PREMIÈRE fatwa d'une page peut être une
+            // continuation, donc seule elle hérite du numéro en cours ; les
+            // suivantes commencent forcément dans la page
+            const numero =
+              normaliseNumeroFatwa(fatwa.numero) || (i === 0 ? numeroHerite : '');
             if (numero !== '') dernierNumero = numero;
             const id = fatwaIdFrom(livreId, numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
-            if (!(await fatwaRef(id).get()).exists) creations++;
+
+            // La même fatwa est parfois extraite deux fois : entière depuis la
+            // page où elle commence, puis tronquée depuis la page suivante, où
+            // le modèle prend sa fin pour un début. Les deux passent la
+            // vérification (chacune débute bien dans sa page), d'où l'arbitrage
+            // ici : le texte le plus complet l'emporte, jamais le plus récent.
+            const existant = await fatwaRef(id).get();
+            if (existant.exists) {
+              const ancien = (existant.data() as FatwaStored).texte_arabe ?? '';
+              if (ancien.length > fatwa.texteComplet.length) {
+                ecartees++;
+                log.info(
+                  { pageId: pageDoc.id, numero, ancien: ancien.length, nouveau: fatwa.texteComplet.length },
+                  'version plus courte ignorée : la fatwa enregistrée est plus complète',
+                );
+                continue;
+              }
+            } else {
+              creations++;
+            }
             // la première fatwa complète porte les pages du fragment recousu
             const pages =
               fragment && i === 0
