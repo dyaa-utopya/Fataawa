@@ -14,7 +14,11 @@ export interface WorkerTasksRuntime {
   serviceAccountEmail: string;
 }
 
-export type WorkerTaskPath = '/tasks/ocr-page' | '/tasks/structurer' | '/tasks/embed';
+export type WorkerTaskPath =
+  | '/tasks/ocr-page'
+  | '/tasks/structurer'
+  | '/tasks/embed'
+  | '/tasks/reembed';
 
 /**
  * Enfile une tâche HTTP vers le worker (jeton OIDC). Pas de nom de tâche :

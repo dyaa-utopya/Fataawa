@@ -98,11 +98,12 @@ distincts (concurrence, CPU, timeout 15 min côté worker).
   `DriveApp.getFilesByName()` (recherche globale par nom !) : la fatwa référence
   directement ses pages, qui portent leur chemin GCS.
 
-*Confirmé comme cible produit (phase 5)* : l'import de livres se fera aussi **directement
-depuis la plateforme** (upload de scans via URL signée GCS). L'ingestion est donc conçue
-**agnostique de la source dès la phase 1** : connecteur Drive aujourd'hui, endpoint
-d'upload demain — mêmes documents `pages/`, même queue derrière. Drive reste la porte
-d'entrée pendant toute la migration.
+*Mis en œuvre* : l'ingestion est **agnostique de la source**. Le bucket est la voie
+principale — tout scan déposé sous `inbox/{livreId}/` devient une page, sans qu'aucun
+objet ne soit déplacé (l'état vit dans Firestore, donc un fichier déjà ingéré est
+simplement ignoré au passage suivant). Le connecteur **Drive est optionnel**
+(`DRIVE_ROOT_FOLDER_ID` vide = désactivé) et copie « A TRAITER » vers le bucket quand il
+est configuré. L'upload depuis l'interface (phase 5) se branchera sur le même préfixe.
 
 ---
 
@@ -136,6 +137,23 @@ de métier de Cloud Tasks :
 **Décision : Firestore (déjà dans le projet) devient l'unique source de vérité et
 remplace Docs + Sheets + MASTER_SHEET + noms de dossiers.**
 
+> **Réalité constatée au déploiement (25/07/2026)** : la base contenait déjà
+> **7 149 fatwas** dans la collection **`fatawas_db`**, avec ses propres noms de champs
+> (`texte_arabe`, `sujet_principal`, `sous_sujet`, `numero_fatwa`, `numero_page`,
+> `image_source`) et un index vectoriel `embedding` 768d. **Aucune migration n'a été
+> faite** : le code écrit et lit cette collection telle quelle, via une couche de
+> mapping unique (`packages/core/src/fatwas.ts`). Le schéma `fatwas/` décrit ci-dessous
+> reste la vue logique ; les noms physiques sont ceux de `fatawas_db`.
+>
+> **Embeddings** : mesure faite au déploiement — les vecteurs historiques ne
+> proviennent pas de `gemini-embedding-001` (similarité cosinus **0,04** entre le
+> vecteur stocké et un ré-embedding du même texte), et leur modèle d'origine
+> (`text-embedding-004` / `embedding-001`) a été **retiré de l'API Gemini**. Ils sont
+> donc inexploitables pour interroger la base avec le nouveau code. Le vecteur courant
+> vit dans un champ distinct **`embedding_v2`** (+ `embedding_model`), avec son propre
+> index ; le champ `embedding` d'origine est **conservé intact**, ce qui garde un
+> retour arrière possible.
+
 ```text
 livres/{livreId}
   titre, dossierDriveId, statut: EN_COURS | TERMINE
@@ -160,7 +178,7 @@ conversations/{conversationId}/messages/{seq}
   role: user | assistant, texte, sources: [...], suggestions: [...], at
 ```
 
-- **Vector search : Firestore natif** (`findNearest`, index vectoriel, cosine).
+- **Vector search : Firestore natif** (`findNearest` sur `embedding_v2`, cosine).
   Embeddings **`gemini-embedding-001` via l'API Gemini, réduits à 768 dimensions**
   (multilingue, bon sur l'arabe, et 768 reste sous la limite Firestore de 2048 tout en
   divisant le coût de stockage). Pour un corpus de l'ordre de 10³–10⁵ fatwas c'est
@@ -215,13 +233,21 @@ utilisées, `flash-lite` et previews). Conséquences :
   `-preview` d'`askGeminiToStructure()` disparaît. Changer de modèle = un changement de
   config, suivi d'un job de ré-embedding si c'est le modèle d'embedding qui change.
 - **Embeddings via la même API Gemini** (`gemini-embedding-001`, 768 dimensions) — même
-  clé, même quota, aucune dépendance Vertex.
+  clé, même quota, aucune dépendance Vertex. Changer de modèle d'embedding impose de
+  rejouer le job `reembed` (les espaces vectoriels ne sont pas comparables entre
+  modèles — c'est précisément ce qui a imposé le ré-embedding initial, cf. §5).
 - **Fallback Cloud Vision conservé** pour les `finishReason: RECITATION`, via la client
   library en auth IAM (la clé Vision en dur meurt, non remplacée). Firebase Admin
   pareil : ADC sur Cloud Run — la private key en clair meurt, non remplacée.
 - **Sorties structurées validées** : `responseSchema` côté Gemini + validation zod côté
   Node ; réponse invalide = retry avec feedback, puis quarantaine. (Aujourd'hui : parse
   optimiste du JSON.)
+- **Triage de clarté avant recherche** : la question est d'abord lue par le modèle, qui
+  la reformule en question autonome (références à l'historique résolues) et la classe
+  claire/ambiguë. Ambiguë → l'API répond `type: "clarification"` avec la question
+  proposée et des interprétations alternatives, **sans lancer de recherche** ; la
+  recherche part quand l'utilisateur confirme. Échec du triage = jamais bloquant, on
+  cherche avec la question brute.
 - Le system prompt de grounding strict du front est conservé, mais exécuté **côté API**,
   enrichi de l'**historique de conversation** (les N derniers tours) ; le front ne voit
   plus que le JSON final

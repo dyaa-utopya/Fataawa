@@ -71,10 +71,11 @@ async function main(): Promise<void> {
       .orderBy('__name__')
       .select('texte_arabe', 'sujet_principal', 'sous_sujet', 'embedding_model')
       .limit(cfg.PAGE_SIZE);
+    // ordonné par __name__ : le curseur est l'ID nu du document, pas son chemin
     if (cursor !== undefined) query = query.startAfter(cursor);
     const snap = await query.get();
     if (snap.empty) break;
-    cursor = snap.docs[snap.docs.length - 1]?.ref.path;
+    cursor = snap.docs[snap.docs.length - 1]?.id;
 
     const aTraiter = snap.docs.filter((doc) => {
       const data = doc.data() as FatwaStored;

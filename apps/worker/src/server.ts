@@ -3,6 +3,7 @@ import { logger, workerConfig } from '@fataawa/core';
 import { embedRouter } from './routes/embed.js';
 import { ingestionRouter } from './routes/ingestion.js';
 import { ocrRouter } from './routes/ocr.js';
+import { reembedRouter } from './routes/reembed.js';
 import { relanceRouter } from './routes/relance.js';
 import { structurerRouter } from './routes/structurer.js';
 
@@ -23,6 +24,7 @@ app.use('/tasks', ingestionRouter(cfg));
 app.use('/tasks', ocrRouter(cfg));
 app.use('/tasks', structurerRouter(cfg));
 app.use('/tasks', embedRouter(cfg));
+app.use('/tasks', reembedRouter(cfg));
 app.use('/tasks', relanceRouter(cfg));
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
