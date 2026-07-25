@@ -3,6 +3,7 @@ import { logger, workerConfig } from '@fataawa/core';
 import { embedRouter } from './routes/embed.js';
 import { ingestionRouter } from './routes/ingestion.js';
 import { ocrRouter } from './routes/ocr.js';
+import { pdfSplitRouter } from './routes/pdf-split.js';
 import { reembedRouter } from './routes/reembed.js';
 import { relanceRouter } from './routes/relance.js';
 import { structurerRouter } from './routes/structurer.js';
@@ -21,6 +22,7 @@ app.get('/healthz', (_req, res) => {
 // seuls Cloud Tasks et Cloud Scheduler, munis d'un jeton OIDC du service
 // account autorisé, peuvent atteindre ces routes.
 app.use('/tasks', ingestionRouter(cfg));
+app.use('/tasks', pdfSplitRouter(cfg));
 app.use('/tasks', ocrRouter(cfg));
 app.use('/tasks', structurerRouter(cfg));
 app.use('/tasks', embedRouter(cfg));

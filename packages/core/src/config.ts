@@ -32,6 +32,9 @@ const workerConfigSchema = z.object({
    * fournies en contexte pour voir la fin des fatwas qui débordent.
    */
   STRUCT_WINDOW_PAGES: z.coerce.number().int().min(1).max(6).default(3),
+  /** Rendu des PDF : PNG sans perte, résolution suffisante pour l'OCR arabe. */
+  PDF_DPI: z.coerce.number().int().min(100).max(600).default(300),
+  PDF_PAGES_PAR_LOT: z.coerce.number().int().min(5).max(200).default(50),
   INGEST_BATCH: z.coerce.number().int().min(1).default(100),
   STUCK_AFTER_MINUTES: z.coerce.number().int().min(5).default(30),
 });
@@ -57,6 +60,8 @@ export interface WorkerConfig {
   structMaxAttempts: number;
   structPagesPerRun: number;
   structWindowPages: number;
+  pdfDpi: number;
+  pdfPagesParLot: number;
   ingestBatch: number;
   stuckAfterMinutes: number;
 }
@@ -84,6 +89,8 @@ export function parseWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     structMaxAttempts: raw.STRUCT_MAX_ATTEMPTS,
     structPagesPerRun: raw.STRUCT_PAGES_PER_RUN,
     structWindowPages: raw.STRUCT_WINDOW_PAGES,
+    pdfDpi: raw.PDF_DPI,
+    pdfPagesParLot: raw.PDF_PAGES_PAR_LOT,
     ingestBatch: raw.INGEST_BATCH,
     stuckAfterMinutes: raw.STUCK_AFTER_MINUTES,
   };

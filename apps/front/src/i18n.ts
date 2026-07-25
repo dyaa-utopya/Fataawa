@@ -44,6 +44,11 @@ export interface Dict {
   missingPages: string;
   fixDuplicates: string;
   autoRefresh: string;
+  modePdf: string;
+  modeImages: string;
+  pdfHint: string;
+  pdfStart: string;
+  pdfDone: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -96,6 +101,13 @@ export const DICT: Record<Lang, Dict> = {
     fixDuplicates:
       'Corrigez les noms de fichiers avant d’envoyer : plusieurs images portent le même numéro de page.',
     autoRefresh: 'actualisé automatiquement',
+    modePdf: 'Envoyer le PDF',
+    modeImages: 'Envoyer des images',
+    pdfHint:
+      'Le PDF entier, tel quel : bien plus léger à transférer que les images. Le serveur en extrait les pages en PNG sans perte, la numérotation vient du PDF.',
+    pdfStart: 'Envoyer le PDF et lancer le traitement',
+    pdfDone:
+      'PDF envoyé. Le découpage en pages a démarré, puis l’OCR, la structuration et l’indexation s’enchaînent ; l’avancement s’affiche ci-dessous.',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -146,6 +158,13 @@ export const DICT: Record<Lang, Dict> = {
     missingPages: 'Numbers missing from the range:',
     fixDuplicates: 'Fix the file names before uploading: several images share the same page number.',
     autoRefresh: 'refreshes automatically',
+    modePdf: 'Upload PDF',
+    modeImages: 'Upload images',
+    pdfHint:
+      'The whole PDF, as is: far lighter to transfer than the images it contains. The server extracts pages as lossless PNG, numbering comes from the PDF.',
+    pdfStart: 'Upload PDF and start processing',
+    pdfDone:
+      'PDF uploaded. Page extraction has started, then OCR, structuring and indexing follow; progress is shown below.',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -195,6 +214,12 @@ export const DICT: Record<Lang, Dict> = {
     missingPages: 'أرقام ناقصة في التسلسل:',
     fixDuplicates: 'صحّح أسماء الملفات قبل الإرسال: عدة صور تحمل رقم الصفحة نفسه.',
     autoRefresh: 'يُحدَّث تلقائياً',
+    modePdf: 'إرسال ملف PDF',
+    modeImages: 'إرسال صور',
+    pdfHint:
+      'الملف كما هو: أخف بكثير من الصور التي يحتويها. يستخرج الخادم الصفحات بصيغة PNG دون فقدان، والترقيم مأخوذ من الملف.',
+    pdfStart: 'إرسال الملف وبدء المعالجة',
+    pdfDone: 'تم إرسال الملف. بدأ تقسيم الصفحات، ثم المسح الضوئي والتنظيم والفهرسة؛ يظهر التقدّم أدناه.',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',

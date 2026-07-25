@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { ApiError, adminIngerer, demanderUploadUrls, listerLivres, verifierLot } from './api.js';
+import {
+  ApiError,
+  adminIngerer,
+  demanderPdfUrl,
+  demanderUploadUrls,
+  lancerDecoupage,
+  listerLivres,
+  verifierLot,
+} from './api.js';
 import { connexionGoogle, deconnexion } from './auth.js';
 import type { DICT } from './i18n.js';
 import type { FichierPret, LivreResume, Verification } from './types.js';
@@ -40,6 +48,9 @@ export default function Upload({
 }) {
   const [livres, setLivres] = useState<LivreResume[]>([]);
   const [livre, setLivre] = useState('');
+  /** Deux voies au choix : le PDF entier, ou les images page par page. */
+  const [mode, setMode] = useState<'pdf' | 'images'>('pdf');
+  const [pdf, setPdf] = useState<File | null>(null);
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [verif, setVerif] = useState<Verification | null>(null);
   const [verifEnCours, setVerifEnCours] = useState(false);
@@ -113,6 +124,31 @@ export default function Upload({
       .then(setVerif)
       .catch((err: unknown) => setErreur(erreurLisible(err)))
       .finally(() => setVerifEnCours(false));
+  }
+
+  /** Voie PDF : un seul transfert, le serveur produit ensuite les pages. */
+  async function envoyerPdf() {
+    const nomLivre = livre.trim();
+    if (nomLivre === '' || pdf === null || envoiEnCours) return;
+    setEnvoiEnCours(true);
+    setErreur(null);
+    setMessage(null);
+    try {
+      const { chemin, url } = await demanderPdfUrl(nomLivre, pdf.name);
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/pdf' },
+        body: pdf,
+      });
+      if (!res.ok) throw new ApiError(res.status);
+      await lancerDecoupage(nomLivre, chemin);
+      setMessage(t.pdfDone);
+      listerLivres().then(setLivres).catch(() => undefined);
+    } catch (err) {
+      setErreur(erreurLisible(err));
+    } finally {
+      setEnvoiEnCours(false);
+    }
   }
 
   async function envoyer() {
@@ -236,25 +272,74 @@ export default function Upload({
                 <option key={l.id} value={l.titre} />
               ))}
             </datalist>
-            <p className="mt-2 text-xs text-stone-500">{t.fileNameHint}</p>
+            {/* choix de la voie d'envoi */}
+            <div className="mt-4 flex overflow-hidden rounded-lg border border-stone-300">
+              {(['pdf', 'images'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setMode(m);
+                    setMessage(null);
+                    setErreur(null);
+                  }}
+                  className={`flex-1 px-3 py-2 text-sm font-medium ${
+                    mode === m ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  {m === 'pdf' ? t.modePdf : t.modeImages}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-stone-500">
+              {mode === 'pdf' ? t.pdfHint : t.fileNameHint}
+            </p>
 
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/tiff"
-              multiple
-              onChange={(e) => choisirFichiers(e.target.files)}
-              className="mt-3 block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-emerald-700 file:px-4 file:py-2 file:text-white"
-            />
+            {mode === 'pdf' ? (
+              <>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    setPdf(e.target.files?.[0] ?? null);
+                    setMessage(null);
+                    setErreur(null);
+                  }}
+                  className="mt-3 block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-emerald-700 file:px-4 file:py-2 file:text-white"
+                />
+                {pdf && (
+                  <p className="mt-2 text-xs text-stone-500">
+                    {pdf.name} · {formatTaille(pdf.size)}
+                  </p>
+                )}
+                <button
+                  onClick={() => void envoyerPdf()}
+                  disabled={envoiEnCours || pdf === null || livre.trim() === ''}
+                  className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-40"
+                >
+                  {envoiEnCours ? t.uploading : t.pdfStart}
+                </button>
+              </>
+            ) : (
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/tiff"
+                multiple
+                onChange={(e) => choisirFichiers(e.target.files)}
+                className="mt-3 block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-emerald-700 file:px-4 file:py-2 file:text-white"
+              />
+            )}
 
-            {lignes.length > 0 && (
+            {mode === 'images' && lignes.length > 0 && (
               <p className="mt-2 text-xs text-stone-500">
                 {lignes.length} {t.filesSelected} · {formatTaille(poidsTotal)}
               </p>
             )}
 
-            {verifEnCours && <p className="mt-3 text-sm text-stone-500">{t.checking}</p>}
+            {mode === 'images' && verifEnCours && (
+              <p className="mt-3 text-sm text-stone-500">{t.checking}</p>
+            )}
 
-            {verif && (
+            {mode === 'images' && verif && (
               <div className="mt-3 space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm">
                 <p className="text-stone-700">
                   {t.pagesDetected}{' '}
@@ -294,18 +379,24 @@ export default function Upload({
               </div>
             )}
 
-            <button
-              onClick={() => void envoyer()}
-              disabled={envoiEnCours || lignes.length === 0 || livre.trim() === '' || bloquant}
-              className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-40"
-            >
-              {envoiEnCours
-                ? `${t.uploading} ${envoyees}/${lignes.length}`
-                : `${t.uploadStart} (${lignes.length})`}
-            </button>
-            {bloquant && <p className="mt-2 text-center text-xs text-red-700">{t.fixDuplicates}</p>}
+            {mode === 'images' && (
+              <>
+                <button
+                  onClick={() => void envoyer()}
+                  disabled={envoiEnCours || lignes.length === 0 || livre.trim() === '' || bloquant}
+                  className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-40"
+                >
+                  {envoiEnCours
+                    ? `${t.uploading} ${envoyees}/${lignes.length}`
+                    : `${t.uploadStart} (${lignes.length})`}
+                </button>
+                {bloquant && (
+                  <p className="mt-2 text-center text-xs text-red-700">{t.fixDuplicates}</p>
+                )}
+              </>
+            )}
 
-            {envoiEnCours && (
+            {mode === 'images' && envoiEnCours && (
               <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-stone-200">
                 <div
                   className="h-full bg-emerald-600 transition-all"
@@ -326,7 +417,7 @@ export default function Upload({
             )}
           </div>
 
-          {lignes.length > 0 && lignes.length <= 600 && (
+          {mode === 'images' && lignes.length > 0 && lignes.length <= 600 && (
             <div className="max-h-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-4">
               <ul className="space-y-1 text-sm">
                 {lignes.map((l) => (

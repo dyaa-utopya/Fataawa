@@ -45,6 +45,17 @@ export async function adminIngerer(): Promise<void> {
   await appelAdmin('/ingerer', {});
 }
 
+export async function demanderPdfUrl(
+  livre: string,
+  nom: string,
+): Promise<{ livreId: string; chemin: string; url: string }> {
+  return appelAdmin('/pdf-url', { livre, nom });
+}
+
+export async function lancerDecoupage(livre: string, chemin: string): Promise<void> {
+  await appelAdmin('/decouper', { livre, chemin });
+}
+
 export async function ask(
   question: string,
   conversationId: string | null,

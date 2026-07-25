@@ -32,6 +32,16 @@ const demandeUploadSchema = z.object({
   fichiers: z.array(fichierSchema).min(1).max(MAX_FICHIERS_PAR_LOT),
 });
 
+const demandePdfSchema = z.object({
+  livre: z.string().trim().min(1).max(200),
+  nom: z.string().trim().min(1).max(300),
+});
+
+const decoupageSchema = z.object({
+  livre: z.string().trim().min(1).max(200),
+  chemin: z.string().trim().min(1).max(500),
+});
+
 /** Vérification d'un livre complet avant le premier octet envoyé. */
 const verificationSchema = z.object({
   livre: z.string().trim().min(1).max(200),
@@ -177,6 +187,60 @@ export function adminRouter(cfg: ApiConfig, auth: AuthConfig): Router {
         'lot d’upload préparé',
       );
       res.status(200).json({ livreId, fichiers: prets });
+    }),
+  );
+
+  /**
+   * Voie PDF : une seule URL d'upload pour le fichier entier. Le PDF est bien
+   * plus léger que les images qu'il contient (quelques dizaines de Mo contre
+   * plusieurs centaines), et c'est le serveur qui produit ensuite les pages en
+   * PNG sans perte — donc sans dégradation de lisibilité pour l'OCR, et sans
+   * dépendre du nommage des fichiers.
+   */
+  router.post(
+    '/pdf-url',
+    asyncHandler(async (req, res) => {
+      const { livre, nom } = demandePdfSchema.parse(req.body);
+      const livreId = sanitizeIdPart(livre);
+      if (livreId === '') {
+        res.status(400).json({ erreur: 'nom de livre invalide' });
+        return;
+      }
+      const chemin = `pdf/${livreId}/${nom.normalize('NFC')}`;
+      const url = await gcsSignedUploadUrl(
+        cfg.gcsBucket,
+        chemin,
+        'application/pdf',
+        UPLOAD_TTL_MINUTES,
+      );
+      logger.info({ livreId, chemin, par: req.utilisateur?.email }, 'upload PDF préparé');
+      res.status(200).json({ livreId, chemin, url });
+    }),
+  );
+
+  /** Lance le découpage du PDF déposé (le pipeline enchaîne ensuite seul). */
+  router.post(
+    '/decouper',
+    asyncHandler(async (req, res) => {
+      const { livre, chemin } = decoupageSchema.parse(req.body);
+      const livreId = sanitizeIdPart(livre);
+      if (cfg.workerUrl === '' || cfg.tasksServiceAccountEmail === '') {
+        res.status(503).json({ erreur: 'découpage indisponible (worker non configuré)' });
+        return;
+      }
+      await enqueueWorkerTask(
+        {
+          project: cfg.project,
+          region: cfg.region,
+          workerUrl: cfg.workerUrl,
+          serviceAccountEmail: cfg.tasksServiceAccountEmail,
+        },
+        cfg.ocrQueue,
+        '/tasks/pdf-split',
+        { livreId, pdfPath: chemin, depuis: 1 },
+      );
+      logger.info({ livreId, chemin, par: req.utilisateur?.email }, 'découpage PDF lancé');
+      res.status(202).json({ lance: true });
     }),
   );
 
