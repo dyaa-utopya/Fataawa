@@ -493,6 +493,11 @@ def step_deploy_worker(images: dict[str, str]) -> str:
                                 "GEMINI_MODEL": GEMINI_MODEL,
                                 "EMBEDDING_MODEL": EMBEDDING_MODEL,
                                 "WORKER_URL": worker_url,
+                                # collection d'écriture des fatwas (retraitement)
+                                "FATWAS_COLLECTION": os.environ.get(
+                                    "FATWAS_COLLECTION", "fatawas_db"
+                                ),
+                                "INGEST_BATCH": os.environ.get("INGEST_BATCH", "100"),
                             }
                         ),
                     }
@@ -620,6 +625,33 @@ def _run_job(job_id: str, images: dict[str, str], script: str, env: dict[str, st
             raise RuntimeError(f"{label} : échec — voir Cloud Logging ({job_id})")
         time.sleep(20)
     raise RuntimeError(f"{label} : délai dépassé")
+
+
+def step_replay(images: dict[str, str]) -> None:
+    """Rejoue des livres depuis legacy/ dans le pipeline actuel."""
+    _run_job(
+        "fataawa-replay",
+        images,
+        "apps/worker/dist/jobs/replay.js",
+        {
+            "GOOGLE_CLOUD_PROJECT": PROJECT,
+            "REGION": REGION,
+            "GCS_BUCKET": BUCKET,
+            "WORKER_URL": (
+                exists(
+                    f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/services/fataawa-worker"
+                )
+                or {}
+            ).get("uri", ""),
+            "TASKS_SA_EMAIL": SA_WORKER,
+            # collection cible : neuve par défaut, la production reste intacte
+            "FATWAS_COLLECTION": os.environ.get("FATWAS_COLLECTION", "fatawas_v2"),
+            "LIVRES": os.environ.get("LIVRES", ""),
+            "INGESTIONS": os.environ.get("INGESTIONS", "30"),
+            "RESET": os.environ.get("RESET", ""),
+        },
+        "rejeu des livres",
+    )
 
 
 def step_import_scans(images: dict[str, str]) -> None:
@@ -787,7 +819,14 @@ def main() -> None:
         globals()[f"step_{step}"]()
     elif step == "build":
         print(json.dumps(step_build(), indent=2))
-    elif step in {"deploy_worker", "scheduler", "deploy_api", "reembed", "import_scans"}:
+    elif step in {
+        "deploy_worker",
+        "scheduler",
+        "deploy_api",
+        "reembed",
+        "import_scans",
+        "replay",
+    }:
         tag = os.environ.get("IMAGE_TAG", "")
         if not tag and step != "scheduler":
             raise SystemExit("IMAGE_TAG requis (tag des images déjà construites)")
@@ -803,6 +842,8 @@ def main() -> None:
             step_reembed(images)
         elif step == "import_scans":
             step_import_scans(images)
+        elif step == "replay":
+            step_replay(images)
         else:
             worker = req(
                 "GET",

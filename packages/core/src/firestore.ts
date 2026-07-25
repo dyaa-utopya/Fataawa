@@ -16,8 +16,16 @@ export function db(): Firestore {
 
 export const COL_LIVRES = 'livres';
 export const SUB_PAGES = 'pages';
-/** Collection historique conservée telle quelle (cf. packages/core/src/fatwas.ts). */
-export const COL_FATWAS = 'fatawas_db';
+
+/**
+ * Collection des fatwas. Par défaut la collection historique de production
+ * (cf. packages/core/src/fatwas.ts). FATWAS_COLLECTION permet d'en viser une
+ * autre : c'est ce qui rend un retraitement complet des livres possible sans
+ * toucher aux données en service — le worker écrit dans la nouvelle, l'API
+ * continue de lire l'ancienne, et la bascule se fait quand le résultat est
+ * validé (retour arrière : remettre la variable).
+ */
+export const COL_FATWAS = process.env.FATWAS_COLLECTION ?? 'fatawas_db';
 export const COL_CONVERSATIONS = 'conversations';
 export const SUB_MESSAGES = 'messages';
 
