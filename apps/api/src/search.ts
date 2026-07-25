@@ -3,6 +3,7 @@ import {
   type ApiConfig,
   CHAMP_EMBEDDING_ACTUEL,
   type FatwaStored,
+  estArtefactSansFatwa,
   fatwasCol,
   gcsExists,
   gcsSignedReadUrl,
@@ -49,15 +50,25 @@ export async function rechercher(
     { model: cfg.embeddingModel, dim: cfg.embeddingDim, taskType: 'RETRIEVAL_QUERY' },
     { apiKey: cfg.geminiApiKey },
   );
+  // On demande large : les lignes de sommaire et pages vides de l'ancien
+  // pipeline sont écartées ensuite, et la liste doit rester pleine malgré tout.
   const snap = await fatwasCol()
-    .findNearest(CHAMP_EMBEDDING_ACTUEL, vecteur, { limit: limite, distanceMeasure: 'COSINE' })
+    .findNearest(CHAMP_EMBEDDING_ACTUEL, vecteur, {
+      limit: Math.min(limite * 2, 60),
+      distanceMeasure: 'COSINE',
+    })
     .get();
 
   const titres = new Map<string, string>();
   const resultats: ResultatRecherche[] = [];
   for (const doc of snap.docs) {
+    if (resultats.length >= limite) break;
     const data = doc.data() as FatwaStored;
     const f = toFatwa(doc.id, data);
+    if (estArtefactSansFatwa(f.texte)) {
+      logger.debug({ fatwaId: f.id }, 'résultat écarté : sommaire ou page sans fatwa');
+      continue;
+    }
 
     if (f.livreId !== '' && !titres.has(f.livreId)) {
       const l = await livreRef(f.livreId).get();

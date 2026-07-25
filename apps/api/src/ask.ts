@@ -7,6 +7,7 @@ import {
   type GeminiContent,
   conversationRef,
   db,
+  estArtefactSansFatwa,
   fatwasCol,
   gcsExists,
   gcsSignedReadUrl,
@@ -211,13 +212,18 @@ export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResul
   );
   let sources: SourceFatwa[];
   try {
+    // marge : les sommaires et pages vides de l'ancien pipeline sont écartés
+    // juste après, sans quoi ils prendraient la place de vraies fatwas
     const snap = await fatwasCol()
       .findNearest(CHAMP_EMBEDDING_ACTUEL, qVector, {
-        limit: cfg.topK,
+        limit: cfg.topK * 2,
         distanceMeasure: 'COSINE',
       })
       .get();
-    sources = snap.docs.map((d) => toFatwa(d.id, d.data() as FatwaStored));
+    sources = snap.docs
+      .map((d) => toFatwa(d.id, d.data() as FatwaStored))
+      .filter((f) => !estArtefactSansFatwa(f.texte))
+      .slice(0, cfg.topK);
   } catch (err) {
     if ((err as { code?: number }).code === 9) {
       throw new VectorIndexError(

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHAMP_EMBEDDING_ACTUEL,
   CHAMP_EMBEDDING_LEGACY,
+  estArtefactSansFatwa,
   fromPipeline,
   texteAEmbedder,
   toFatwa,
@@ -87,5 +88,37 @@ describe('fromPipeline', () => {
     });
     expect(stored.numero_page).toBe('');
     expect(stored.gcs_path).toBe('');
+  });
+});
+
+describe('estArtefactSansFatwa', () => {
+  // tous ces cas sont relevés tels quels dans la collection en service
+  it('écarte les lignes de sommaire', () => {
+    expect(estArtefactSansFatwa('تفسير سورة الكهف')).toBe(true);
+    expect(estArtefactSansFatwa('ائتمام المسافر بالمقيم')).toBe(true);
+    expect(estArtefactSansFatwa('موجبات الكفر (الردة)')).toBe(true);
+    expect(estArtefactSansFatwa('إبليس من الجن ٥٠٤')).toBe(true);
+  });
+
+  it('écarte les numéros de page nus et les points de conduite', () => {
+    expect(estArtefactSansFatwa('153')).toBe(true);
+    expect(estArtefactSansFatwa('٤٥١ . . . . . . . . .')).toBe(true);
+  });
+
+  it('écarte les marqueurs de page vide, crochets compris', () => {
+    expect(estArtefactSansFatwa('الصفحة فارغة')).toBe(true);
+    expect(estArtefactSansFatwa('[الصفحة فارغة]')).toBe(true);
+  });
+
+  it('conserve une fatwa courte dès qu’elle porte un repère de question', () => {
+    expect(
+      estArtefactSansFatwa('س: هدم المسجد وإعادة بنائه؟ ج: الأصل جواز ذلك، إذا كان لمصلحة.'),
+    ).toBe(false);
+    expect(estArtefactSansFatwa('الفتوى رقم (٩٩٤٤). س: يوجد بعض المرضى')).toBe(false);
+    expect(estArtefactSansFatwa('السؤال الخامس من الفتوى رقم (١٥٠٠)')).toBe(false);
+  });
+
+  it('conserve un texte long même sans repère : c’est une suite de fatwa', () => {
+    expect(estArtefactSansFatwa('و'.repeat(200))).toBe(false);
   });
 });
