@@ -24,16 +24,18 @@ export default function Rapport({ t }: { t: T }) {
   const [data, setData] = useState<RapportData | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(true);
+  /** Collection analysée : celle servie au public, ou celle du retraitement. */
+  const [collection, setCollection] = useState<string | undefined>(undefined);
 
   function recharger() {
     setChargement(true);
     setErreur(null);
-    chargerRapport()
+    chargerRapport(collection)
       .then(setData)
       .catch(() => setErreur(t.errorNetwork))
       .finally(() => setChargement(false));
   }
-  useEffect(recharger, [t.errorNetwork]);
+  useEffect(recharger, [t.errorNetwork, collection]);
 
   if (chargement && data === null)
     return <p className="p-6 text-sm text-stone-500">{t.reportLoading}</p>;
@@ -50,13 +52,30 @@ export default function Rapport({ t }: { t: T }) {
               {data.total} {t.fatwa} · {t.reportCollection} <code>{data.collection}</code>
             </p>
           </div>
-          <button
-            onClick={recharger}
-            disabled={chargement}
-            className="shrink-0 rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-40"
-          >
-            {chargement ? t.loading : t.reportRefresh}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {data.collectionsDisponibles.length > 1 && (
+              <div className="flex overflow-hidden rounded-md border border-stone-300">
+                {data.collectionsDisponibles.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCollection(c)}
+                    className={`px-2.5 py-1.5 text-xs font-medium ${
+                      data.collection === c ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={recharger}
+              disabled={chargement}
+              className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-40"
+            >
+              {chargement ? t.loading : t.reportRefresh}
+            </button>
+          </div>
         </div>
       </div>
 

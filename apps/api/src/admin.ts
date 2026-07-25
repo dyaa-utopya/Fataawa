@@ -8,8 +8,8 @@ import {
   SECTION_AUTRE,
   TAXONOMIE,
   enqueueWorkerTask,
+  db,
   extractNumeroPage,
-  fatwasCol,
   gcsSignedUploadUrl,
   isSupportedImageMime,
   livresCol,
@@ -53,6 +53,16 @@ const verificationSchema = z.object({
   livre: z.string().trim().min(1).max(200),
   fichiers: z.array(fichierSchema).min(1).max(2000),
 });
+
+/**
+ * Collections que le rapport accepte d'analyser : celle servie au public, et
+ * celle où le pipeline écrit pendant le retraitement. Toute autre valeur est
+ * ignorée — le nom vient d'une requête, il ne sert jamais tel quel à ouvrir
+ * une collection.
+ */
+const COLLECTIONS_RAPPORT: string[] = [
+  ...new Set([COL_FATWAS, process.env.FATWAS_COLLECTION_PIPELINE ?? 'fatawas_v2']),
+];
 
 /** Compte des manques d'un livre, tel que le rapport le rend. */
 export interface RapportLivre {
@@ -310,10 +320,17 @@ export function adminRouter(cfg: ApiConfig, auth: AuthConfig): Router {
    * Balaie la collection en entier plutôt que d'interroger par champ manquant —
    * Firestore ne sait pas indexer l'absence, et une requête « champ == '' » ne
    * remonterait pas les documents où il n'existe pas du tout.
+   *
+   * Deux collections coexistent pendant le retraitement : celle que le site
+   * sert, et celle où le pipeline écrit. Le rapport doit pouvoir viser l'une ou
+   * l'autre — sinon il ne dirait rien du travail en cours. Le nom demandé est
+   * confronté à ces deux valeurs connues, jamais utilisé tel quel.
    */
   router.get(
     '/rapport',
-    asyncHandler(async (_req, res) => {
+    asyncHandler(async (req, res) => {
+      const demandee = String(req.query.collection ?? '');
+      const collection = COLLECTIONS_RAPPORT.includes(demandee) ? demandee : COL_FATWAS;
       const titres = new Map<string, string>();
       for (const d of (await livresCol().limit(200).get()).docs) {
         titres.set(d.id, (d.data() as LivreDoc).titre ?? d.id);
@@ -324,7 +341,7 @@ export function adminRouter(cfg: ApiConfig, auth: AuthConfig): Router {
       let total = 0;
       let curseur: string | null = null;
       for (;;) {
-        let q = fatwasCol().orderBy('__name__').limit(500);
+        let q = db().collection(collection).orderBy('__name__').limit(500);
         if (curseur !== null) q = q.startAfter(curseur);
         const snap = await q.get();
         if (snap.empty) break;
@@ -373,7 +390,8 @@ export function adminRouter(cfg: ApiConfig, auth: AuthConfig): Router {
 
       const livres = [...parLivre.values()].sort((a, b) => a.titre.localeCompare(b.titre));
       res.status(200).json({
-        collection: COL_FATWAS,
+        collection,
+        collectionsDisponibles: COLLECTIONS_RAPPORT,
         total,
         incompletes: livres.reduce(
           (n, l) => n + Math.max(l.sansThemeN1, l.sansThemeN2, l.sansThemeN3),

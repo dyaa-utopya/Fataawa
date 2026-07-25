@@ -100,6 +100,7 @@ export interface RapportLivre {
 
 export interface Rapport {
   collection: string;
+  collectionsDisponibles: string[];
   total: number;
   incompletes: number;
   livres: RapportLivre[];

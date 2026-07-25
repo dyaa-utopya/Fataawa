@@ -54,8 +54,10 @@ export async function listerThemes(): Promise<Taxonomie> {
 }
 
 /** Relevé des fatwas incomplètes ; balaie la collection, d'où l'attente. */
-export async function chargerRapport(): Promise<Rapport> {
-  return appelAdmin<Rapport>('/rapport');
+export async function chargerRapport(collection?: string): Promise<Rapport> {
+  return appelAdmin<Rapport>(
+    collection === undefined ? '/rapport' : `/rapport?collection=${encodeURIComponent(collection)}`,
+  );
 }
 
 export async function adminIngerer(): Promise<void> {

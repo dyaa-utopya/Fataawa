@@ -574,6 +574,9 @@ def step_deploy_api(images: dict[str, str]) -> str:
                             # collection servie au public, distincte de celle où
                             # le retraitement écrit tant qu'il n'est pas validé
                             "FATWAS_COLLECTION": FATWAS_LECTURE,
+                            # le rapport d'administration peut aussi analyser la
+                            # collection où le retraitement écrit
+                            "FATWAS_COLLECTION_PIPELINE": FATWAS_ECRITURE,
                             "REGION": REGION,
                             "WORKER_URL": worker_url,
                             "TASKS_SA_EMAIL": SA_WORKER,
