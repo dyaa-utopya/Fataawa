@@ -13,6 +13,7 @@ function source(id: string, numero = ''): SourceFatwa {
     id,
     livreId: 'livre1',
     numero,
+    sousQuestion: '',
     sujetPrincipal: 'الزكاة',
     sousSujet: '',
     texte: 'نص الفتوى',

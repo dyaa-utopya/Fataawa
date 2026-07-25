@@ -27,6 +27,11 @@ const workerConfigSchema = z.object({
   MAX_OCR_ATTEMPTS: z.coerce.number().int().min(1).default(3),
   STRUCT_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(3),
   STRUCT_PAGES_PER_RUN: z.coerce.number().int().min(1).default(12),
+  /**
+   * Taille de la fenêtre de lecture : la page structurée plus les suivantes,
+   * fournies en contexte pour voir la fin des fatwas qui débordent.
+   */
+  STRUCT_WINDOW_PAGES: z.coerce.number().int().min(1).max(6).default(3),
   INGEST_BATCH: z.coerce.number().int().min(1).default(100),
   STUCK_AFTER_MINUTES: z.coerce.number().int().min(5).default(30),
 });
@@ -51,6 +56,7 @@ export interface WorkerConfig {
   maxOcrAttempts: number;
   structMaxAttempts: number;
   structPagesPerRun: number;
+  structWindowPages: number;
   ingestBatch: number;
   stuckAfterMinutes: number;
 }
@@ -77,6 +83,7 @@ export function parseWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     maxOcrAttempts: raw.MAX_OCR_ATTEMPTS,
     structMaxAttempts: raw.STRUCT_MAX_ATTEMPTS,
     structPagesPerRun: raw.STRUCT_PAGES_PER_RUN,
+    structWindowPages: raw.STRUCT_WINDOW_PAGES,
     ingestBatch: raw.INGEST_BATCH,
     stuckAfterMinutes: raw.STUCK_AFTER_MINUTES,
   };

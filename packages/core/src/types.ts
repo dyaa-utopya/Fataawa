@@ -18,9 +18,10 @@ export interface PageSourceRef {
   gcsPath: string;
 }
 
-/** Fatwa coupée en fin de page, en attente de la ou des pages suivantes. */
+/** Fatwa coupée en fin de fenêtre, en attente des pages suivantes. */
 export interface FatwaOuverteState {
   numero: string;
+  sousQuestion: string;
   sujetPrincipal: string;
   sousSujet: string;
   textePartiel: string;

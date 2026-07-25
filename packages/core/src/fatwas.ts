@@ -25,6 +25,10 @@ export interface FatwaStored {
   image_source?: string;
   embedding?: unknown;
   // champs ajoutés par le pipeline Cloud Run
+  /** Repère de sous-question dans une fatwa qui en contient plusieurs. */
+  sous_question?: string;
+  question_arabe?: string;
+  reponse_arabe?: string;
   embedding_v2?: unknown;
   embedding_model?: string;
   livre_id?: string;
@@ -39,6 +43,8 @@ export interface Fatwa {
   id: string;
   livreId: string;
   numero: string;
+  /** Vide si la fatwa ne porte qu'une seule question. */
+  sousQuestion: string;
   sujetPrincipal: string;
   sousSujet: string;
   texte: string;
@@ -55,6 +61,7 @@ export function toFatwa(id: string, data: FatwaStored): Fatwa {
     id,
     livreId: data.livre_id ?? '',
     numero: data.numero_fatwa ?? '',
+    sousQuestion: data.sous_question ?? '',
     sujetPrincipal: data.sujet_principal ?? '',
     sousSujet: data.sous_sujet ?? '',
     texte: data.texte_arabe ?? '',
@@ -72,9 +79,12 @@ export function texteAEmbedder(f: Fatwa): string {
 export interface FatwaPipelineWrite {
   livreId: string;
   numero: string;
+  sousQuestion?: string;
   sujetPrincipal: string;
   sousSujet: string;
   texte: string;
+  question?: string;
+  reponse?: string;
   pages: PageSourceRef[];
 }
 
@@ -84,6 +94,9 @@ export function fromPipeline(f: FatwaPipelineWrite): FatwaStored {
   return {
     livre_id: f.livreId,
     numero_fatwa: f.numero,
+    sous_question: f.sousQuestion ?? '',
+    question_arabe: f.question ?? '',
+    reponse_arabe: f.reponse ?? '',
     sujet_principal: f.sujetPrincipal,
     sous_sujet: f.sousSujet,
     texte_arabe: f.texte,

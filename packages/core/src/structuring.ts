@@ -10,13 +10,18 @@ import type { FatwaOuverteState } from './types.js';
 /** Sortie attendue de la structuration d'une page. */
 export interface FatwaExtraite {
   numero: string;
+  /** Repère de sous-question dans une même fatwa : « 1 », « 2 », « أ »… vide si unique. */
+  sousQuestion: string;
   sujetPrincipal: string;
   sousSujet: string;
+  question: string;
+  reponse: string;
   texteComplet: string;
 }
 
 export interface FragmentOuvert {
   numero: string;
+  sousQuestion: string;
   sujetPrincipal: string;
   sousSujet: string;
   textePartiel: string;
@@ -29,8 +34,11 @@ export interface StructurationResult {
 
 const fatwaExtraiteSchema = z.object({
   numero_fatwa: z.string().default(''),
+  sous_question: z.string().default(''),
   sujet_principal: z.string().default(''),
   sous_sujet: z.string().default(''),
+  question: z.string().default(''),
+  reponse: z.string().default(''),
   texte_complet: z.string().min(1),
 });
 
@@ -39,6 +47,7 @@ const structurationSchema = z.object({
   fatwa_ouverte: z
     .object({
       numero_fatwa: z.string().default(''),
+      sous_question: z.string().default(''),
       sujet_principal: z.string().default(''),
       sous_sujet: z.string().default(''),
       texte_partiel: z.string().min(1),
@@ -57,8 +66,11 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
         type: 'OBJECT',
         properties: {
           numero_fatwa: { type: 'STRING' },
+          sous_question: { type: 'STRING' },
           sujet_principal: { type: 'STRING' },
           sous_sujet: { type: 'STRING' },
+          question: { type: 'STRING' },
+          reponse: { type: 'STRING' },
           texte_complet: { type: 'STRING' },
         },
         required: ['texte_complet'],
@@ -69,6 +81,7 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
       nullable: true,
       properties: {
         numero_fatwa: { type: 'STRING' },
+        sous_question: { type: 'STRING' },
         sujet_principal: { type: 'STRING' },
         sous_sujet: { type: 'STRING' },
         texte_partiel: { type: 'STRING' },
@@ -79,39 +92,74 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
   required: ['fatwas_completes'],
 } as const;
 
-export const STRUCTURATION_SYSTEM = `Tu structures des recueils de fatwas arabes, page par page, dans l'ordre de lecture.
-Tu reçois le texte OCR d'UNE page, précédé éventuellement d'un FRAGMENT EN ATTENTE
-(fatwa commencée sur les pages précédentes, dont le début de cette page est la suite).
+export const STRUCTURATION_SYSTEM = `Tu structures des recueils de fatwas arabes en parcourant le livre dans l'ordre.
+
+Tu reçois une FENÊTRE DE LECTURE de plusieurs pages consécutives :
+- la PAGE COURANTE, seule page dont tu extrais les fatwas ;
+- des PAGES SUIVANTES fournies uniquement comme CONTEXTE, pour que tu puisses voir où
+  se termine une fatwa qui déborde de la page courante ;
+- éventuellement un FRAGMENT EN ATTENTE : une fatwa commencée avant la page courante,
+  dont le début de la page courante est la suite.
+
 Règles strictes :
-1. Découpe le texte en fatwas : une fatwa = question/exposé + réponse, souvent introduite
-   par un numéro. Recopie le texte FIDÈLEMENT, sans résumer, sans traduire, sans corriger.
-2. Si un FRAGMENT EN ATTENTE est fourni, sa suite est le début de la page : la fatwa
-   reconstituée (fragment + suite) doit être la PREMIÈRE de fatwas_completes si elle se
-   termine sur cette page, sinon elle reste dans fatwa_ouverte (texte_partiel cumulé).
-3. Si la dernière fatwa de la page est coupée (réponse inachevée, phrase interrompue),
-   mets-la dans fatwa_ouverte, pas dans fatwas_completes.
-4. numero_fatwa : le numéro tel qu'imprimé (chiffres arabes acceptés), vide si absent.
-5. sujet_principal / sous_sujet : thème fiqh court (mariage, zakat, prière…), déduis-les
-   du contenu ; en arabe si le texte est en arabe.
-6. Titres de chapitres, en-têtes, numéros de page isolés : à ignorer (ni fatwa ni fragment).
+1. N'extrais QUE les fatwas qui commencent dans la PAGE COURANTE, ou qui prolongent le
+   FRAGMENT EN ATTENTE. Une fatwa qui commence dans une page de contexte ne doit PAS
+   être extraite : elle le sera à son tour. C'est ce qui évite les doublons.
+2. Une fatwa peut se poursuivre dans les pages de contexte : dans ce cas recopie son
+   texte ENTIER (page courante + suite) et place-la dans fatwas_completes. Ne coupe
+   jamais une fatwa au bord d'une page.
+3. Si une fatwa commencée dans la page courante n'est toujours pas terminée à la fin de
+   la fenêtre, mets-la dans fatwa_ouverte (texte_partiel cumulé) et non dans
+   fatwas_completes.
+4. Recopie le texte arabe FIDÈLEMENT : ni résumé, ni traduction, ni correction.
+5. numero_fatwa : le numéro de la fatwa tel qu'imprimé (chiffres arabes acceptés), vide
+   s'il n'y en a pas. Ce numéro appartient souvent à un en-tête du type
+   « السؤال الأول من الفتوى رقم (1881) » : le nombre entre parenthèses est le numéro.
+6. SOUS-QUESSTIONS : une même fatwa contient parfois plusieurs questions
+   (« السؤال الأول », « السؤال الثاني », ou des repères أ / ب / ج, ou 1 / 2 / 3), chacune
+   avec sa propre réponse. Produis alors UNE ENTRÉE PAR QUESTION, toutes avec le MÊME
+   numero_fatwa, et renseigne sous_question avec le repère tel qu'imprimé (« الأول »,
+   « أ », « 2 »…). Si la fatwa ne contient qu'une question, laisse sous_question vide.
+7. question / reponse : le texte de la question (ou de l'exposé) et celui de la réponse,
+   séparés. texte_complet : les deux réunis, dans l'ordre de lecture.
+8. sujet_principal / sous_sujet : thème de fiqh court (الزكاة، الصلاة، النكاح…), déduit de
+   la fatwa ENTIÈRE — jamais du seul début ni de la seule fin — en arabe si le texte
+   l'est. Deux entrées d'une même fatwa peuvent avoir des sujets différents.
+9. Ignore les titres de chapitres, en-têtes courants, numéros de page isolés et notes de
+   bas de page : ce ne sont ni des fatwas ni des fragments.
 Réponds STRICTEMENT au schéma JSON demandé.`;
+
+export interface PageFenetre {
+  numero: number;
+  texte: string;
+}
 
 export interface StructurationInput {
   titreLivre: string;
   numeroPage: number;
   textePage: string;
+  /** Pages suivantes fournies comme contexte de fin de fatwa. */
+  pagesSuivantes?: PageFenetre[];
   fragment: FatwaOuverteState | null;
 }
 
 export function buildStructurationPrompt(input: StructurationInput): string {
   const fragmentBloc = input.fragment
-    ? `FRAGMENT EN ATTENTE (fatwa ${input.fragment.numero || 'sans numéro'} commencée sur les pages précédentes — le début de la page ci-dessous en est la suite) :
+    ? `FRAGMENT EN ATTENTE — fatwa ${input.fragment.numero || 'sans numéro'}${
+        input.fragment.sousQuestion ? `, question ${input.fragment.sousQuestion}` : ''
+      } commencée avant la page courante ; le début de la page courante en est la suite :
 ${input.fragment.textePartiel}
 
 `
     : '';
-  return `${fragmentBloc}TEXTE OCR DE LA PAGE ${input.numeroPage} DU LIVRE « ${input.titreLivre} » :
-${input.textePage}`;
+  const contexte = (input.pagesSuivantes ?? [])
+    .map(
+      (p) => `--- PAGE ${p.numero} (CONTEXTE, ne pas extraire ce qui y commence) ---
+${p.texte}`,
+    )
+    .join('\n\n');
+  return `${fragmentBloc}=== PAGE COURANTE ${input.numeroPage} — LIVRE « ${input.titreLivre} » ===
+${input.textePage}${contexte === '' ? '' : `\n\n${contexte}`}`;
 }
 
 /** JSON.parse + validation zod, en snake_case Gemini → camelCase domaine. */
@@ -120,13 +168,17 @@ export function parseStructurationJson(raw: string): StructurationResult {
   return {
     fatwasCompletes: parsed.fatwas_completes.map((f) => ({
       numero: f.numero_fatwa.trim(),
+      sousQuestion: f.sous_question.trim(),
       sujetPrincipal: f.sujet_principal.trim(),
       sousSujet: f.sous_sujet.trim(),
+      question: f.question.trim(),
+      reponse: f.reponse.trim(),
       texteComplet: f.texte_complet.trim(),
     })),
     fatwaOuverte: parsed.fatwa_ouverte
       ? {
           numero: parsed.fatwa_ouverte.numero_fatwa.trim(),
+          sousQuestion: parsed.fatwa_ouverte.sous_question.trim(),
           sujetPrincipal: parsed.fatwa_ouverte.sujet_principal.trim(),
           sousSujet: parsed.fatwa_ouverte.sous_sujet.trim(),
           textePartiel: parsed.fatwa_ouverte.texte_partiel.trim(),
@@ -186,12 +238,20 @@ export function sanitizeIdPart(value: string): string {
 }
 
 /**
- * ID de document d'une fatwa : `{livreId}_{numéro normalisé}`.
- * La déduplication (ex-colonne A du MASTER_SHEET) devient l'ID lui-même.
+ * ID de document d'une fatwa : `{livreId}_{numéro}` — plus `_{sous-question}`
+ * quand la fatwa porte plusieurs questions. L'ID EST la déduplication :
+ * réécrire la même fatwa (page rejouée, structuration relancée) écrase le même
+ * document au lieu d'en créer un second.
  * Sans numéro exploitable, un suffixe déterministe (page + index) est utilisé.
  */
-export function fatwaIdFrom(livreId: string, numeroBrut: string, fallbackSuffix: string): string {
+export function fatwaIdFrom(
+  livreId: string,
+  numeroBrut: string,
+  fallbackSuffix: string,
+  sousQuestion = '',
+): string {
   const numero = sanitizeIdPart(normaliseNumeroFatwa(numeroBrut));
   const part = numero !== '' ? numero : sanitizeIdPart(fallbackSuffix);
-  return `${sanitizeIdPart(livreId)}_${part !== '' ? part : 'x'}`;
+  const sous = sanitizeIdPart(normaliseNumeroFatwa(sousQuestion));
+  return `${sanitizeIdPart(livreId)}_${part !== '' ? part : 'x'}${sous !== '' ? `_${sous}` : ''}`;
 }

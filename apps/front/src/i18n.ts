@@ -43,6 +43,7 @@ export interface Dict {
   rejectedFiles: string;
   missingPages: string;
   fixDuplicates: string;
+  autoRefresh: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -94,6 +95,7 @@ export const DICT: Record<Lang, Dict> = {
     missingPages: 'Numéros absents de la série :',
     fixDuplicates:
       'Corrigez les noms de fichiers avant d’envoyer : plusieurs images portent le même numéro de page.',
+    autoRefresh: 'actualisé automatiquement',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -143,6 +145,7 @@ export const DICT: Record<Lang, Dict> = {
     rejectedFiles: 'file(s) skipped',
     missingPages: 'Numbers missing from the range:',
     fixDuplicates: 'Fix the file names before uploading: several images share the same page number.',
+    autoRefresh: 'refreshes automatically',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -191,6 +194,7 @@ export const DICT: Record<Lang, Dict> = {
     rejectedFiles: 'ملف/ملفات مستبعدة',
     missingPages: 'أرقام ناقصة في التسلسل:',
     fixDuplicates: 'صحّح أسماء الملفات قبل الإرسال: عدة صور تحمل رقم الصفحة نفسه.',
+    autoRefresh: 'يُحدَّث تلقائياً',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',

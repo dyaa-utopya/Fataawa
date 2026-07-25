@@ -58,8 +58,13 @@ describe('fromPipeline', () => {
       sujetPrincipal: 'الزكاة',
       sousSujet: 'النصاب',
       texte: 'نص كامل',
+      question: 'نص السؤال',
+      reponse: 'نص الجواب',
       pages: [{ numero: 7, pageId: '0007', gcsPath: 'livres/livreA/pages/0007.png' }],
     });
+    expect(stored.question_arabe).toBe('نص السؤال');
+    expect(stored.reponse_arabe).toBe('نص الجواب');
+    expect(stored.sous_question).toBe('');
     expect(stored.texte_arabe).toBe('نص كامل');
     expect(stored.sujet_principal).toBe('الزكاة');
     expect(stored.numero_fatwa).toBe('12');

@@ -47,13 +47,25 @@ export default function Upload({
   const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
+  // Le traitement tourne en arrière-plan : l'avancement se rafraîchit seul,
+  // inutile d'attendre ou de recharger la page.
   useEffect(() => {
     if (!utilisateur) return;
-    listerLivres()
-      .then(setLivres)
-      .catch((err: unknown) => {
-        if (err instanceof ApiError && err.status === 403) setErreur(t.notAllowed);
-      });
+    let vivant = true;
+    const charger = () =>
+      listerLivres()
+        .then((l) => {
+          if (vivant) setLivres(l);
+        })
+        .catch((err: unknown) => {
+          if (vivant && err instanceof ApiError && err.status === 403) setErreur(t.notAllowed);
+        });
+    void charger();
+    const minuteur = setInterval(() => void charger(), 15_000);
+    return () => {
+      vivant = false;
+      clearInterval(minuteur);
+    };
   }, [utilisateur, t.notAllowed]);
 
   const poidsTotal = useMemo(() => lignes.reduce((s, l) => s + l.fichier.size, 0), [lignes]);
@@ -333,18 +345,29 @@ export default function Upload({
 
           {livres.length > 0 && (
             <div className="rounded-xl border border-stone-200 bg-white p-4">
-              <h3 className="mb-2 text-sm font-medium text-stone-700">{t.booksInProgress}</h3>
-              <ul className="space-y-1 text-sm text-stone-600">
-                {livres.map((l) => (
-                  <li key={l.id} className="flex justify-between gap-3">
-                    <span className="truncate" dir="auto">
-                      {l.titre}
-                    </span>
-                    <span className="shrink-0 text-xs text-stone-400">
-                      {l.nbPagesOcr}/{l.nbPages} {t.page} · {l.nbFatwas} {t.fatwa}
-                    </span>
-                  </li>
-                ))}
+              <h3 className="mb-2 flex items-baseline justify-between text-sm font-medium text-stone-700">
+                {t.booksInProgress}
+                <span className="text-xs font-normal text-stone-400">{t.autoRefresh}</span>
+              </h3>
+              <ul className="space-y-2 text-sm text-stone-600">
+                {livres.map((l) => {
+                  const pct = l.nbPages === 0 ? 0 : Math.round((l.nbPagesOcr / l.nbPages) * 100);
+                  return (
+                    <li key={l.id}>
+                      <div className="flex justify-between gap-3">
+                        <span className="truncate" dir="auto">
+                          {l.titre}
+                        </span>
+                        <span className="shrink-0 text-xs text-stone-400">
+                          {l.nbPagesOcr}/{l.nbPages} {t.page} · {l.nbFatwas} {t.fatwa}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-stone-200">
+                        <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

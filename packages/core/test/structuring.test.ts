@@ -54,6 +54,7 @@ describe('buildStructurationPrompt', () => {
       textePage: 'suite du texte',
       fragment: {
         numero: '12',
+        sousQuestion: 'أ',
         sujetPrincipal: '',
         sousSujet: '',
         textePartiel: 'début coupé',
@@ -62,9 +63,11 @@ describe('buildStructurationPrompt', () => {
     });
     expect(prompt).toContain('FRAGMENT EN ATTENTE');
     expect(prompt).toContain('début coupé');
-    expect(prompt).toContain('PAGE 13');
+    expect(prompt).toContain('question أ');
+    expect(prompt).toContain('PAGE COURANTE 13');
   });
-  it('sans fragment, pas de bloc fragment', () => {
+
+  it('sans fragment ni contexte, pas de bloc superflu', () => {
     const prompt = buildStructurationPrompt({
       titreLivre: 'Recueil',
       numeroPage: 1,
@@ -72,6 +75,25 @@ describe('buildStructurationPrompt', () => {
       fragment: null,
     });
     expect(prompt).not.toContain('FRAGMENT EN ATTENTE');
+    expect(prompt).not.toContain('CONTEXTE');
+  });
+
+  it('ajoute les pages suivantes comme contexte à ne pas extraire', () => {
+    const prompt = buildStructurationPrompt({
+      titreLivre: 'Recueil',
+      numeroPage: 10,
+      textePage: 'page dix',
+      pagesSuivantes: [
+        { numero: 11, texte: 'page onze' },
+        { numero: 12, texte: 'page douze' },
+      ],
+      fragment: null,
+    });
+    expect(prompt).toContain('PAGE COURANTE 10');
+    expect(prompt).toContain('PAGE 11 (CONTEXTE');
+    expect(prompt).toContain('page douze');
+    // l'ordre compte : la page courante précède son contexte
+    expect(prompt.indexOf('page dix')).toBeLessThan(prompt.indexOf('page onze'));
   });
 });
 
@@ -85,5 +107,57 @@ describe('identifiants de fatwas', () => {
   it('construit un ID déterministe, avec repli sans numéro', () => {
     expect(fatwaIdFrom('livreA', '١٢', 'p0001-0')).toBe('livreA_12');
     expect(fatwaIdFrom('livreA', '', 'p0001-0')).toBe('livreA_p0001-0');
+  });
+  it('distingue les sous-questions d’une même fatwa', () => {
+    expect(fatwaIdFrom('livreA', '1881', 'p-0', 'أ')).toBe('livreA_1881_أ');
+    expect(fatwaIdFrom('livreA', '1881', 'p-0', '٢')).toBe('livreA_1881_2');
+    // même fatwa, deux questions → deux documents distincts
+    expect(fatwaIdFrom('livreA', '1881', 'p-0', '1')).not.toBe(
+      fatwaIdFrom('livreA', '1881', 'p-0', '2'),
+    );
+    // rejouer la même sous-question réécrit le même document
+    expect(fatwaIdFrom('livreA', '1881', 'p-9', '1')).toBe(fatwaIdFrom('livreA', '1881', 'p-3', '1'));
+  });
+});
+
+describe('sous-questions', () => {
+  it('extrait plusieurs questions portant le même numéro de fatwa', () => {
+    const result = parseStructurationJson(
+      JSON.stringify({
+        fatwas_completes: [
+          {
+            numero_fatwa: '1881',
+            sous_question: 'الأول',
+            sujet_principal: 'الزكاة',
+            question: 'نص السؤال الأول',
+            reponse: 'نص الجواب الأول',
+            texte_complet: 'السؤال الأول والجواب',
+          },
+          {
+            numero_fatwa: '1881',
+            sous_question: 'الثاني',
+            sujet_principal: 'الصلاة',
+            question: 'نص السؤال الثاني',
+            reponse: 'نص الجواب الثاني',
+            texte_complet: 'السؤال الثاني والجواب',
+          },
+        ],
+      }),
+    );
+    expect(result.fatwasCompletes).toHaveLength(2);
+    expect(result.fatwasCompletes.map((f) => f.numero)).toEqual(['1881', '1881']);
+    expect(result.fatwasCompletes.map((f) => f.sousQuestion)).toEqual(['الأول', 'الثاني']);
+    // chaque sous-question garde son propre thème
+    expect(result.fatwasCompletes[0]?.sujetPrincipal).toBe('الزكاة');
+    expect(result.fatwasCompletes[1]?.sujetPrincipal).toBe('الصلاة');
+    expect(result.fatwasCompletes[0]?.question).toBe('نص السؤال الأول');
+    expect(result.fatwasCompletes[0]?.reponse).toBe('نص الجواب الأول');
+  });
+
+  it('sous_question vide quand la fatwa n’a qu’une question', () => {
+    const result = parseStructurationJson(
+      JSON.stringify({ fatwas_completes: [{ numero_fatwa: '5', texte_complet: 'نص' }] }),
+    );
+    expect(result.fatwasCompletes[0]?.sousQuestion).toBe('');
   });
 });

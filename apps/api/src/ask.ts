@@ -263,8 +263,13 @@ QUESTION (langue de réponse : ${req.langue}) : ${questionRecherche}`,
   const sourcesOut: AskSourceOut[] = await Promise.all(
     utilisees.map(async (u) => {
       const page = u.source.pages[0];
+      // une fatwa à plusieurs questions est citée avec son repère de question
+      const libelle =
+        u.source.sousQuestion !== ''
+          ? `${u.numeroFatwa} — ${u.source.sousQuestion}`
+          : u.numeroFatwa;
       return {
-        numero_fatwa: u.numeroFatwa,
+        numero_fatwa: libelle,
         citation_arabe: u.citationArabe,
         livre_titre: titres.get(u.source.livreId) ?? '',
         numero_page: page?.numero ?? u.source.numeroPage,

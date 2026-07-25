@@ -124,6 +124,33 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             continue;
           }
 
+          // Fenêtre de lecture : les pages suivantes servent de contexte pour
+          // voir où se termine une fatwa qui déborde de la page courante. On
+          // attend qu'elles soient OCRisées si elles existent déjà (l'OCR
+          // relancera la structuration), sinon on avance avec ce qu'on a et
+          // c'est fatwaOuverte qui sert de filet.
+          const suivantesSnap = await pagesCol(livreId)
+            .where('numero', '>', page.numero)
+            .orderBy('numero', 'asc')
+            .limit(cfg.structWindowPages - 1)
+            .get();
+          const contexte: Array<{ numero: number; texte: string }> = [];
+          let attendContexte = false;
+          for (const doc of suivantesSnap.docs) {
+            const p = doc.data() as PageDoc;
+            if (p.statutOcr === STATUT_OCR.TRAITE) {
+              const t = (p.texteOcr ?? '').trim();
+              if (t !== '' && t !== '[PAGE_VIDE]') contexte.push({ numero: p.numero, texte: t });
+            } else if (p.statutOcr !== STATUT_OCR.QUARANTAINE) {
+              attendContexte = true;
+              break;
+            }
+          }
+          if (attendContexte && contexte.length === 0) {
+            etat = 'attente_ocr';
+            break;
+          }
+
           const fragment = livre.fatwaOuverte ?? null;
           let resultat;
           try {
@@ -132,6 +159,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 titreLivre: livre.titre,
                 numeroPage: page.numero,
                 textePage: texte,
+                pagesSuivantes: contexte,
                 fragment,
               },
               { apiKey: cfg.geminiApiKey, model: cfg.geminiModel },
@@ -168,14 +196,25 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           };
           const fragmentPages = fragment?.pages ?? [];
 
+          // pages couvertes par la fenêtre : une fatwa peut s'étendre sur le contexte
+          const pagesFenetre: PageSourceRef[] = [
+            pageSource,
+            ...suivantesSnap.docs
+              .filter((d) => contexte.some((c) => c.numero === (d.data() as PageDoc).numero))
+              .map((d) => {
+                const p = d.data() as PageDoc;
+                return { numero: p.numero, pageId: d.id, gcsPath: p.gcsPath };
+              }),
+          ];
+
           const batch = db().batch();
           const aEmbedder: string[] = [];
           resultat.fatwasCompletes.forEach((fatwa, i) => {
-            const id = fatwaIdFrom(livreId, fatwa.numero, `p${pageDoc.id}-${i}`);
+            const id = fatwaIdFrom(livreId, fatwa.numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
             // la première fatwa complète porte les pages du fragment recousu
             const pages =
               fragment && i === 0
-                ? dedupPages([...fragmentPages, pageSource])
+                ? dedupPages([...fragmentPages, ...pagesFenetre])
                 : [pageSource];
             batch.set(
               fatwaRef(id),
@@ -183,9 +222,12 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 ...fromPipeline({
                   livreId,
                   numero: fatwa.numero,
+                  sousQuestion: fatwa.sousQuestion,
                   sujetPrincipal: fatwa.sujetPrincipal,
                   sousSujet: fatwa.sousSujet,
                   texte: fatwa.texteComplet,
+                  question: fatwa.question,
+                  reponse: fatwa.reponse,
                   pages,
                 }),
                 majAt: FieldValue.serverTimestamp(),
@@ -198,6 +240,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           const nouvelleOuverte: FatwaOuverteState | null = resultat.fatwaOuverte
             ? {
                 numero: resultat.fatwaOuverte.numero,
+                sousQuestion: resultat.fatwaOuverte.sousQuestion,
                 sujetPrincipal: resultat.fatwaOuverte.sujetPrincipal,
                 sousSujet: resultat.fatwaOuverte.sousSujet,
                 textePartiel: resultat.fatwaOuverte.textePartiel,
