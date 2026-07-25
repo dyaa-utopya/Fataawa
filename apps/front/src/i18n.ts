@@ -16,6 +16,9 @@ export interface Dict {
   fatwa: string;
   clarifyYes: string;
   clarifyOr: string;
+  close: string;
+  openFull: string;
+  noImage: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -39,6 +42,9 @@ export const DICT: Record<Lang, Dict> = {
     fatwa: 'Fatwa',
     clarifyYes: 'Oui, c’est ma question',
     clarifyOr: 'ou choisissez une autre lecture — ou reformulez librement :',
+    close: 'Fermer',
+    openFull: 'Ouvrir en taille réelle',
+    noImage: 'Page scannée non disponible',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -61,6 +67,9 @@ export const DICT: Record<Lang, Dict> = {
     fatwa: 'Fatwa',
     clarifyYes: 'Yes, that’s my question',
     clarifyOr: 'or pick another reading — or simply rephrase:',
+    close: 'Close',
+    openFull: 'Open full size',
+    noImage: 'Scanned page unavailable',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -82,6 +91,9 @@ export const DICT: Record<Lang, Dict> = {
     fatwa: 'فتوى',
     clarifyYes: 'نعم، هذا سؤالي',
     clarifyOr: 'أو اختر قراءة أخرى — أو أعد صياغة سؤالك:',
+    close: 'إغلاق',
+    openFull: 'عرض بالحجم الكامل',
+    noImage: 'الصفحة الممسوحة غير متوفرة',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',

@@ -569,6 +569,68 @@ def step_deploy_api(images: dict[str, str]) -> str:
     return url
 
 
+def _run_job(job_id: str, images: dict[str, str], script: str, env: dict[str, str], label: str) -> None:
+    """Crée/actualise un Cloud Run Job sur l'image du worker et l'exécute."""
+    base = f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/jobs"
+    body = {
+        "template": {
+            "taskCount": 1,
+            "template": {
+                "serviceAccount": SA_WORKER,
+                "timeout": "3600s",
+                "maxRetries": 0,
+                "containers": [
+                    {
+                        "image": images["worker"],
+                        "command": ["node"],
+                        "args": [script],
+                        "resources": {"limits": {"memory": "2Gi", "cpu": "2"}},
+                        "env": _env_vars(env),
+                    }
+                ],
+            },
+        }
+    }
+    op = req("POST", f"{base}?jobId={job_id}", body) if exists(f"{base}/{job_id}") is None else req(
+        "PATCH", f"{base}/{job_id}", body
+    )
+    poll_lro("https://run.googleapis.com/v2", op["name"], f"job {label}")
+
+    op = req("POST", f"{base}/{job_id}:run", {})
+    exec_name = op["metadata"]["name"] if "metadata" in op else op["name"]
+    log(f"{label} : exécution lancée ({exec_name.split('/')[-1]})")
+    start = time.time()
+    while time.time() - start < 3600:
+        ex = req("GET", f"https://run.googleapis.com/v2/{exec_name}")
+        if ex.get("succeededCount"):
+            log(f"{label} : terminé")
+            return
+        if ex.get("failedCount"):
+            raise RuntimeError(f"{label} : échec — voir Cloud Logging ({job_id})")
+        time.sleep(20)
+    raise RuntimeError(f"{label} : délai dépassé")
+
+
+def step_import_scans(images: dict[str, str]) -> None:
+    """Copie les scans historiques Drive → bucket et raccorde les fatwas."""
+    drive_root = os.environ.get("DRIVE_SCANS_FOLDER_ID") or os.environ.get("DRIVE_ROOT_FOLDER_ID", "")
+    if not drive_root:
+        raise SystemExit("DRIVE_SCANS_FOLDER_ID requis (dossier Drive racine des scans)")
+    _run_job(
+        "fataawa-import-scans",
+        images,
+        "apps/worker/dist/jobs/import-scans.js",
+        {
+            "GOOGLE_CLOUD_PROJECT": PROJECT,
+            "GCS_BUCKET": BUCKET,
+            "DRIVE_ROOT_FOLDER_ID": drive_root,
+            "CONCURRENCY": os.environ.get("CONCURRENCY", "8"),
+            "DRY_RUN": os.environ.get("DRY_RUN", ""),
+        },
+        "import des scans",
+    )
+
+
 def step_reembed(images: dict[str, str]) -> None:
     """Cloud Run Job de ré-embedding de la collection historique (idempotent)."""
     log("Ré-embedding de fatawas_db (Cloud Run Job)")
@@ -714,7 +776,7 @@ def main() -> None:
         globals()[f"step_{step}"]()
     elif step == "build":
         print(json.dumps(step_build(), indent=2))
-    elif step in {"deploy_worker", "scheduler", "deploy_api", "reembed"}:
+    elif step in {"deploy_worker", "scheduler", "deploy_api", "reembed", "import_scans"}:
         tag = os.environ.get("IMAGE_TAG", "")
         if not tag and step != "scheduler":
             raise SystemExit("IMAGE_TAG requis (tag des images déjà construites)")
@@ -728,6 +790,8 @@ def main() -> None:
             step_deploy_api(images)
         elif step == "reembed":
             step_reembed(images)
+        elif step == "import_scans":
+            step_import_scans(images)
         else:
             worker = req(
                 "GET",

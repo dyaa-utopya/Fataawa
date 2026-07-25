@@ -9,9 +9,87 @@ const LANGS: Array<{ code: Lang; label: string }> = [
   { code: 'ar', label: 'ع' },
 ];
 
-function SourceCard({ source, t }: { source: AskSource; t: (typeof DICT)['fr'] }) {
+/** Visionneuse plein écran de la page scannée. */
+function PageViewer({
+  source,
+  t,
+  onClose,
+}: {
+  source: AskSource;
+  t: (typeof DICT)['fr'];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
-    <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm">
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-stone-900/90 p-3 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 pb-2 text-white">
+        <p className="text-sm font-medium" dir="auto">
+          {t.fatwa} {source.numero_fatwa || '—'}
+          {source.numero_page != null && ` · ${t.page} ${source.numero_page}`}
+          {source.livre_titre && ` · ${source.livre_titre}`}
+        </p>
+        <div className="flex items-center gap-2">
+          {source.url_image && (
+            <a
+              href={source.url_image}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-md bg-white/15 px-2.5 py-1.5 text-xs hover:bg-white/25"
+            >
+              {t.openFull}
+            </a>
+          )}
+          <button onClick={onClose} className="rounded-md bg-white/15 px-2.5 py-1.5 text-xs hover:bg-white/25">
+            ✕ {t.close}
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
+        {source.url_image ? (
+          <img
+            src={source.url_image}
+            alt={`${t.fatwa} ${source.numero_fatwa}`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-full max-w-full rounded bg-white object-contain shadow-2xl"
+          />
+        ) : (
+          <p className="text-sm text-stone-300">{t.noImage}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SourceCard({
+  source,
+  t,
+  onOpen,
+}: {
+  source: AskSource;
+  t: (typeof DICT)['fr'];
+  onOpen: () => void;
+}) {
+  const cliquable = source.url_image !== null;
+  return (
+    <div
+      onClick={cliquable ? onOpen : undefined}
+      className={`rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm ${
+        cliquable ? 'cursor-pointer transition hover:border-emerald-400 hover:bg-emerald-50/40' : ''
+      }`}
+    >
       <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
         <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800">
           {t.fatwa} {source.numero_fatwa || '—'}
@@ -28,15 +106,8 @@ function SourceCard({ source, t }: { source: AskSource; t: (typeof DICT)['fr'] }
           {source.citation_arabe}
         </p>
       )}
-      {source.url_image && (
-        <a
-          href={source.url_image}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs font-medium text-emerald-700 underline hover:text-emerald-900"
-        >
-          {t.viewPage}
-        </a>
+      {cliquable && (
+        <span className="text-xs font-medium text-emerald-700 underline">🖼 {t.viewPage}</span>
       )}
     </div>
   );
@@ -55,6 +126,7 @@ export default function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pageOuverte, setPageOuverte] = useState<AskSource | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,7 +261,7 @@ export default function App() {
                         {t.sources}
                       </p>
                       {m.sources.map((s, j) => (
-                        <SourceCard key={j} source={s} t={t} />
+                        <SourceCard key={j} source={s} t={t} onOpen={() => setPageOuverte(s)} />
                       ))}
                     </div>
                   )}
@@ -290,6 +362,10 @@ export default function App() {
           {t.disclaimer}
         </p>
       </footer>
+
+      {pageOuverte && (
+        <PageViewer source={pageOuverte} t={t} onClose={() => setPageOuverte(null)} />
+      )}
     </div>
   );
 }

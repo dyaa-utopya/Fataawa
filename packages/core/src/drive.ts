@@ -71,6 +71,26 @@ export async function listImages(folderId: string, max: number): Promise<DriveIm
   );
 }
 
+/** Toutes les images d'un dossier (pagination complète). */
+export async function listAllImages(folderId: string): Promise<DriveImage[]> {
+  const out: DriveImage[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await drive().files.list({
+      q: `'${escapeQuery(folderId)}' in parents and trashed=false and mimeType contains 'image/'`,
+      fields: 'nextPageToken, files(id,name,mimeType)',
+      orderBy: 'name',
+      pageSize: 1000,
+      pageToken,
+    });
+    for (const f of res.data.files ?? []) {
+      if (f.id && f.name && f.mimeType) out.push({ id: f.id, name: f.name, mimeType: f.mimeType });
+    }
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return out;
+}
+
 export async function downloadFile(fileId: string): Promise<Buffer> {
   const res = await drive().files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
   return Buffer.from(res.data as ArrayBuffer);
