@@ -9,7 +9,6 @@ import {
   listerLivres,
   verifierLot,
 } from './api.js';
-import { connexionGoogle, deconnexion } from './auth.js';
 import type { DICT } from './i18n.js';
 import type { FichierPret, LivreResume, Verification } from './types.js';
 
@@ -40,11 +39,10 @@ function formatTaille(octets: number): string {
 export default function Upload({
   t,
   utilisateur,
-  onRetour,
 }: {
   t: (typeof DICT)['fr'];
-  utilisateur: User | null;
-  onRetour: () => void;
+  /** Toujours connecté : l'espace d'administration filtre en amont. */
+  utilisateur: User;
 }) {
   const [livres, setLivres] = useState<LivreResume[]>([]);
   const [livre, setLivre] = useState('');
@@ -81,27 +79,6 @@ export default function Upload({
 
   const poidsTotal = useMemo(() => lignes.reduce((s, l) => s + l.fichier.size, 0), [lignes]);
   const envoyees = lignes.filter((l) => l.etat === 'ok').length;
-
-  if (!utilisateur) {
-    return (
-      <div className="flex h-dvh flex-col items-center justify-center bg-stone-100 px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">
-          <h2 className="text-lg font-semibold text-stone-800">{t.uploadTitle}</h2>
-          <p className="mt-2 text-sm text-stone-500">{t.signInHint}</p>
-          <button
-            onClick={() => void connexionGoogle().catch(() => setErreur(t.errorNetwork))}
-            className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800"
-          >
-            {t.signIn}
-          </button>
-          <button onClick={onRetour} className="mt-3 w-full text-sm text-stone-500 underline">
-            {t.backToChat}
-          </button>
-          {erreur && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
-        </div>
-      </div>
-    );
-  }
 
   function erreurLisible(err: unknown): string {
     if (err instanceof ApiError && err.status === 403) return t.notAllowed;
@@ -231,31 +208,6 @@ export default function Upload({
   const bloquant = (verif?.doublons.length ?? 0) > 0;
 
   return (
-    <div className="flex h-dvh flex-col bg-stone-100 text-stone-900">
-      <header className="shrink-0 border-b border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h1 className="text-lg font-bold text-emerald-800">{t.uploadTitle}</h1>
-            <p className="text-xs text-stone-500">{utilisateur.email}</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={onRetour}
-              className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
-            >
-              {t.backToChat}
-            </button>
-            <button
-              onClick={() => void deconnexion()}
-              className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
-            >
-              {t.signOut}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
           <div className="rounded-xl border border-stone-200 bg-white p-4">
             <label className="block text-sm font-medium text-stone-700">{t.bookName}</label>
@@ -463,7 +415,5 @@ export default function Upload({
             </div>
           )}
         </div>
-      </main>
-    </div>
   );
 }

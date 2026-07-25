@@ -25,8 +25,9 @@ export interface PageSourceRef {
 export interface FatwaOuverteState {
   numero: string;
   sousQuestion: string;
-  sujetPrincipal: string;
-  sousSujet: string;
+  themeN1: string;
+  themeN2: string;
+  themeN3: string;
   textePartiel: string;
   pages: PageSourceRef[];
   /** Page où le fragment a été ouvert : sert à l'abandonner s'il n'aboutit pas. */

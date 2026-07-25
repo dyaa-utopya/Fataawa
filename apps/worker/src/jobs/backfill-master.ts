@@ -76,8 +76,12 @@ async function main(): Promise<void> {
         ...fromPipeline({
           livreId,
           numero: ligne.numero !== '' ? ligne.numero : ligne.id,
-          sujetPrincipal: ligne.sujet,
-          sousSujet: ligne.sousSujet,
+          // reprise d'une feuille historique : ses thèmes ne suivent pas la
+          // taxonomie, on les conserve tels quels et on marque l'incomplétude
+          themeN1: ligne.sujet,
+          themeN2: ligne.sousSujet,
+          themeN3: '',
+          themesComplets: false,
           texte: ligne.texte,
           pages: [],
         }),

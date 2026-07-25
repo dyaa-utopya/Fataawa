@@ -56,8 +56,10 @@ describe('fromPipeline', () => {
     const stored = fromPipeline({
       livreId: 'livreA',
       numero: '12',
-      sujetPrincipal: 'الزكاة',
-      sousSujet: 'النصاب',
+      themeN1: 'الزكاة',
+      themeN2: 'زكاة النقدين',
+      themeN3: 'نصاب الذهب',
+      themesComplets: true,
       texte: 'نص كامل',
       question: 'نص السؤال',
       reponse: 'نص الجواب',
@@ -67,7 +69,13 @@ describe('fromPipeline', () => {
     expect(stored.reponse_arabe).toBe('نص الجواب');
     expect(stored.sous_question).toBe('');
     expect(stored.texte_arabe).toBe('نص كامل');
+    // les trois niveaux, plus les deux champs historiques tenus à jour
+    expect(stored.theme_n1).toBe('الزكاة');
+    expect(stored.theme_n2).toBe('زكاة النقدين');
+    expect(stored.theme_n3).toBe('نصاب الذهب');
+    expect(stored.themes_complets).toBe(true);
     expect(stored.sujet_principal).toBe('الزكاة');
+    expect(stored.sous_sujet).toBe('زكاة النقدين');
     expect(stored.numero_fatwa).toBe('12');
     expect(stored.numero_page).toBe('7');
     expect(stored.gcs_path).toBe('livres/livreA/pages/0007.png');
@@ -81,8 +89,10 @@ describe('fromPipeline', () => {
     const stored = fromPipeline({
       livreId: 'l',
       numero: '',
-      sujetPrincipal: '',
-      sousSujet: '',
+      themeN1: '',
+      themeN2: '',
+      themeN3: '',
+      themesComplets: false,
       texte: 't',
       pages: [],
     });

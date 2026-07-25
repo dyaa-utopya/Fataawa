@@ -59,6 +59,13 @@ export interface FatwaStored {
   embedding_v2?: unknown;
   embedding_model?: string;
   livre_id?: string;
+  /** Thèmes sur trois niveaux (pipeline actuel) ; les deux premiers sont pris
+   *  dans la taxonomie, le troisième est le sujet précis. */
+  theme_n1?: string;
+  theme_n2?: string;
+  theme_n3?: string;
+  /** Faux si un niveau manque ou sort de la taxonomie : repris par le rapport. */
+  themes_complets?: boolean;
   gcs_path?: string;
   pages?: PageSourceRef[];
   statut?: 'STRUCTUREE' | 'EN_LIGNE';
@@ -74,6 +81,8 @@ export interface Fatwa {
   sousQuestion: string;
   sujetPrincipal: string;
   sousSujet: string;
+  /** Sujet précis (niveau 3) ; vide sur les fatwas de l'ancien pipeline. */
+  themeN3: string;
   texte: string;
   /** Pages sources connues (fatwas issues du pipeline). */
   pages: PageSourceRef[];
@@ -89,8 +98,11 @@ export function toFatwa(id: string, data: FatwaStored): Fatwa {
     livreId: data.livre_id ?? '',
     numero: data.numero_fatwa ?? '',
     sousQuestion: data.sous_question ?? '',
-    sujetPrincipal: data.sujet_principal ?? '',
-    sousSujet: data.sous_sujet ?? '',
+    // les fatwas du pipeline portent les trois niveaux ; les historiques
+    // n'ont que les deux champs d'origine, d'où le repli
+    sujetPrincipal: data.theme_n1 ?? data.sujet_principal ?? '',
+    sousSujet: data.theme_n2 ?? data.sous_sujet ?? '',
+    themeN3: data.theme_n3 ?? '',
     texte: data.texte_arabe ?? '',
     pages: data.pages ?? [],
     imageSource: data.image_source ?? '',
@@ -100,7 +112,7 @@ export function toFatwa(id: string, data: FatwaStored): Fatwa {
 
 /** Texte envoyé à l'embedding : sujets puis contenu. */
 export function texteAEmbedder(f: Fatwa): string {
-  return [f.sujetPrincipal, f.sousSujet, f.texte].filter((s) => s !== '').join('\n');
+  return [f.sujetPrincipal, f.sousSujet, f.themeN3, f.texte].filter((s) => s !== '').join('\n');
 }
 
 export interface FatwaPipelineWrite {
@@ -109,8 +121,10 @@ export interface FatwaPipelineWrite {
   sousQuestion?: string;
   /** Nom de fichier du scan, décrit comme sur les fatwas historiques. */
   imageSource?: string;
-  sujetPrincipal: string;
-  sousSujet: string;
+  themeN1: string;
+  themeN2: string;
+  themeN3: string;
+  themesComplets: boolean;
   texte: string;
   question?: string;
   reponse?: string;
@@ -126,8 +140,14 @@ export function fromPipeline(f: FatwaPipelineWrite): FatwaStored {
     sous_question: f.sousQuestion ?? '',
     question_arabe: f.question ?? '',
     reponse_arabe: f.reponse ?? '',
-    sujet_principal: f.sujetPrincipal,
-    sous_sujet: f.sousSujet,
+    theme_n1: f.themeN1,
+    theme_n2: f.themeN2,
+    theme_n3: f.themeN3,
+    themes_complets: f.themesComplets,
+    // les deux champs historiques restent alimentés : l'API et le front les
+    // lisent encore, et la collection en service ne connaît qu'eux
+    sujet_principal: f.themeN1,
+    sous_sujet: f.themeN2,
     texte_arabe: f.texte,
     pages: f.pages,
     numero_page: premiere ? String(premiere.numero) : '',

@@ -18,21 +18,26 @@ describe('parseStructurationJson', () => {
         fatwas_completes: [
           {
             numero_fatwa: ' ١٢ ',
-            sujet_principal: 'الزكاة ',
-            sous_sujet: '',
+            theme_n1: 'الزكاة ',
+            theme_n2: 'زكاة الفطر',
+            theme_n3: 'مقدار زكاة الفطر',
             texte_complet: ' نص الفتوى الكامل ',
           },
         ],
         fatwa_ouverte: {
           numero_fatwa: '13',
-          sujet_principal: '',
-          sous_sujet: '',
+          theme_n1: '',
+          theme_n2: '',
+          theme_n3: '',
           texte_partiel: 'بداية فتوى مقطوعة',
         },
       }),
     );
     expect(result.fatwasCompletes).toHaveLength(1);
     expect(result.fatwasCompletes[0]?.numero).toBe('١٢');
+    // les thèmes sont ramenés sur la taxonomie au passage
+    expect(result.fatwasCompletes[0]?.themeN1).toBe('الزكاة');
+    expect(result.fatwasCompletes[0]?.themesComplets).toBe(true);
     expect(result.fatwasCompletes[0]?.texteComplet).toBe('نص الفتوى الكامل');
     expect(result.fatwaOuverte?.textePartiel).toBe('بداية فتوى مقطوعة');
   });
@@ -59,8 +64,9 @@ describe('buildStructurationPrompt', () => {
       fragment: {
         numero: '12',
         sousQuestion: 'أ',
-        sujetPrincipal: '',
-        sousSujet: '',
+        themeN1: '',
+        themeN2: '',
+        themeN3: '',
         textePartiel: 'début coupé',
         pages: [],
       },
@@ -208,7 +214,9 @@ describe('sous-questions', () => {
           {
             numero_fatwa: '1881',
             sous_question: 'الأول',
-            sujet_principal: 'الزكاة',
+            theme_n1: 'الزكاة',
+            theme_n2: 'زكاة الفطر',
+            theme_n3: 'وقت الإخراج',
             question: 'نص السؤال الأول',
             reponse: 'نص الجواب الأول',
             texte_complet: 'السؤال الأول والجواب',
@@ -216,7 +224,9 @@ describe('sous-questions', () => {
           {
             numero_fatwa: '1881',
             sous_question: 'الثاني',
-            sujet_principal: 'الصلاة',
+            theme_n1: 'الصلاة',
+            theme_n2: 'صفة الصلاة',
+            theme_n3: 'سجود السهو',
             question: 'نص السؤال الثاني',
             reponse: 'نص الجواب الثاني',
             texte_complet: 'السؤال الثاني والجواب',
@@ -228,8 +238,8 @@ describe('sous-questions', () => {
     expect(result.fatwasCompletes.map((f) => f.numero)).toEqual(['1881', '1881']);
     expect(result.fatwasCompletes.map((f) => f.sousQuestion)).toEqual(['الأول', 'الثاني']);
     // chaque sous-question garde son propre thème
-    expect(result.fatwasCompletes[0]?.sujetPrincipal).toBe('الزكاة');
-    expect(result.fatwasCompletes[1]?.sujetPrincipal).toBe('الصلاة');
+    expect(result.fatwasCompletes[0]?.themeN1).toBe('الزكاة');
+    expect(result.fatwasCompletes[1]?.themeN1).toBe('الصلاة');
     expect(result.fatwasCompletes[0]?.question).toBe('نص السؤال الأول');
     expect(result.fatwasCompletes[0]?.reponse).toBe('نص الجواب الأول');
   });

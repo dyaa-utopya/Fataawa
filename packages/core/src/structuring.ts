@@ -5,6 +5,7 @@ import {
   stripJsonFences,
 } from './gemini.js';
 import { normalizeDigits } from './pages.js';
+import { SECTION_AUTRE, blocTaxonomie, verifieThemes } from './themes.js';
 import type { FatwaOuverteState } from './types.js';
 
 /** Sortie attendue de la structuration d'une page. */
@@ -12,8 +13,12 @@ export interface FatwaExtraite {
   numero: string;
   /** Repère de sous-question dans une même fatwa : « 1 », « 2 », « أ »… vide si unique. */
   sousQuestion: string;
-  sujetPrincipal: string;
-  sousSujet: string;
+  /** Chapitre, section et sujet précis, ramenés sur la taxonomie. */
+  themeN1: string;
+  themeN2: string;
+  themeN3: string;
+  /** Les trois niveaux sont renseignés et conformes à la taxonomie. */
+  themesComplets: boolean;
   question: string;
   reponse: string;
   texteComplet: string;
@@ -22,8 +27,9 @@ export interface FatwaExtraite {
 export interface FragmentOuvert {
   numero: string;
   sousQuestion: string;
-  sujetPrincipal: string;
-  sousSujet: string;
+  themeN1: string;
+  themeN2: string;
+  themeN3: string;
   textePartiel: string;
 }
 
@@ -35,8 +41,9 @@ export interface StructurationResult {
 const fatwaExtraiteSchema = z.object({
   numero_fatwa: z.string().default(''),
   sous_question: z.string().default(''),
-  sujet_principal: z.string().default(''),
-  sous_sujet: z.string().default(''),
+  theme_n1: z.string().default(''),
+  theme_n2: z.string().default(''),
+  theme_n3: z.string().default(''),
   question: z.string().default(''),
   reponse: z.string().default(''),
   texte_complet: z.string().min(1),
@@ -48,8 +55,9 @@ const structurationSchema = z.object({
     .object({
       numero_fatwa: z.string().default(''),
       sous_question: z.string().default(''),
-      sujet_principal: z.string().default(''),
-      sous_sujet: z.string().default(''),
+      theme_n1: z.string().default(''),
+      theme_n2: z.string().default(''),
+      theme_n3: z.string().default(''),
       texte_partiel: z.string().min(1),
     })
     .nullable()
@@ -67,15 +75,18 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
         properties: {
           numero_fatwa: { type: 'STRING' },
           sous_question: { type: 'STRING' },
-          sujet_principal: { type: 'STRING' },
-          sous_sujet: { type: 'STRING' },
+          theme_n1: { type: 'STRING' },
+          theme_n2: { type: 'STRING' },
+          theme_n3: { type: 'STRING' },
           question: { type: 'STRING' },
           reponse: { type: 'STRING' },
           texte_complet: { type: 'STRING' },
         },
         // question et réponse sont exigées : sans elles, impossible de savoir
-        // où s'arrête l'exposé et où commence la réponse du comité
-        required: ['question', 'reponse', 'texte_complet'],
+        // où s'arrête l'exposé et où commence la réponse du comité.
+        // Les trois niveaux de thème le sont aussi : une fatwa sans thème
+        // n'est pas navigable, et le rapport d'anomalies la signalera.
+        required: ['question', 'reponse', 'texte_complet', 'theme_n1', 'theme_n2', 'theme_n3'],
       },
     },
     fatwa_ouverte: {
@@ -84,8 +95,9 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
       properties: {
         numero_fatwa: { type: 'STRING' },
         sous_question: { type: 'STRING' },
-        sujet_principal: { type: 'STRING' },
-        sous_sujet: { type: 'STRING' },
+        theme_n1: { type: 'STRING' },
+        theme_n2: { type: 'STRING' },
+        theme_n3: { type: 'STRING' },
         texte_partiel: { type: 'STRING' },
       },
       required: ['texte_partiel'],
@@ -138,11 +150,24 @@ Règles strictes :
      pas l'exposé pour équilibrer les deux.
    Si aucun marqueur « ج » n'apparaît, mets tout l'énoncé dans question et laisse reponse vide.
    texte_complet : les deux réunis, dans l'ordre de lecture, sans rien retirer.
-8. sujet_principal / sous_sujet : thème de fiqh court (الزكاة، الصلاة، النكاح…), déduit de
-   la fatwa ENTIÈRE — jamais du seul début ni de la seule fin — en arabe si le texte
-   l'est. Deux entrées d'une même fatwa peuvent avoir des sujets différents.
+8. THÈMES — theme_n1, theme_n2, theme_n3 : OBLIGATOIRES tous les trois, jamais vides,
+   déduits de la fatwa ENTIÈRE (jamais du seul début ni de la seule fin).
+   - theme_n1 : le chapitre. Recopie-le EXACTEMENT tel qu'il figure dans la TAXONOMIE
+     ci-dessous. N'en invente aucun autre.
+   - theme_n2 : la section, prise EXACTEMENT dans la liste du chapitre que tu as choisi.
+     Si aucune ne convient, écris « ${SECTION_AUTRE} ».
+   - theme_n3 : le sujet précis, libre, en arabe, deux à cinq mots (« زكاة الحلي المستعمل »,
+     « حكم الصلاة خلف المبتدع »). Ni phrase, ni recopie de la question.
+   Deux questions d'une même fatwa peuvent relever de thèmes différents : classe chacune
+   pour elle-même.
+
+TAXONOMIE (chapitre : sections admises)
+${blocTaxonomie()}
+
 9. Ignore les titres de chapitres, en-têtes courants, numéros de page isolés et notes de
    bas de page : ce ne sont ni des fatwas ni des fragments.
+10. Une page de SOMMAIRE (فهرس / المحتويات : suite de titres suivis de points de conduite
+    et d'un numéro de page) ne contient AUCUNE fatwa. Rends fatwas_completes vide.
 Réponds STRICTEMENT au schéma JSON demandé.`;
 
 export interface PageFenetre {
@@ -182,23 +207,38 @@ ${input.textePage}${contexte === '' ? '' : `\n\n${contexte}`}`;
 export function parseStructurationJson(raw: string): StructurationResult {
   const parsed = structurationSchema.parse(JSON.parse(stripJsonFences(raw)));
   return {
-    fatwasCompletes: parsed.fatwas_completes.map((f) => ({
-      numero: f.numero_fatwa.trim(),
-      sousQuestion: f.sous_question.trim(),
-      sujetPrincipal: f.sujet_principal.trim(),
-      sousSujet: f.sous_sujet.trim(),
-      question: f.question.trim(),
-      reponse: f.reponse.trim(),
-      texteComplet: f.texte_complet.trim(),
-    })),
+    fatwasCompletes: parsed.fatwas_completes.map((f) => {
+      // les libellés hors taxonomie sont effacés, jamais rapprochés de force :
+      // la fatwa ressort incomplète et le rapport la signale
+      const th = verifieThemes(f.theme_n1, f.theme_n2, f.theme_n3);
+      return {
+        numero: f.numero_fatwa.trim(),
+        sousQuestion: f.sous_question.trim(),
+        themeN1: th.niveau1,
+        themeN2: th.niveau2,
+        themeN3: th.niveau3,
+        themesComplets: th.complet,
+        question: f.question.trim(),
+        reponse: f.reponse.trim(),
+        texteComplet: f.texte_complet.trim(),
+      };
+    }),
     fatwaOuverte: parsed.fatwa_ouverte
-      ? {
-          numero: parsed.fatwa_ouverte.numero_fatwa.trim(),
-          sousQuestion: parsed.fatwa_ouverte.sous_question.trim(),
-          sujetPrincipal: parsed.fatwa_ouverte.sujet_principal.trim(),
-          sousSujet: parsed.fatwa_ouverte.sous_sujet.trim(),
-          textePartiel: parsed.fatwa_ouverte.texte_partiel.trim(),
-        }
+      ? (() => {
+          const th = verifieThemes(
+            parsed.fatwa_ouverte.theme_n1,
+            parsed.fatwa_ouverte.theme_n2,
+            parsed.fatwa_ouverte.theme_n3,
+          );
+          return {
+            numero: parsed.fatwa_ouverte.numero_fatwa.trim(),
+            sousQuestion: parsed.fatwa_ouverte.sous_question.trim(),
+            themeN1: th.niveau1,
+            themeN2: th.niveau2,
+            themeN3: th.niveau3,
+            textePartiel: parsed.fatwa_ouverte.texte_partiel.trim(),
+          };
+        })()
       : null,
   };
 }
@@ -237,6 +277,29 @@ Ta réponse précédente était invalide (${derniereErreur}). Réponds STRICTEME
     }
   }
   throw new Error(`structuration invalide après 2 essais : ${derniereErreur}`);
+}
+
+/**
+ * Page de sommaire (فهرس) ? Ces pages, en fin de recueil, alignent des titres
+ * suivis de points de conduite et d'un numéro de page. Le modèle n'en tire
+ * généralement rien, mais rien ne le lui garantit : on les écarte avant même
+ * de l'appeler — c'est déterministe, et cela évite une vingtaine d'appels par
+ * livre.
+ *
+ * Signature mesurée sur le recueil 1 : les pages 478 à 496 ont 78 à 88 % de
+ * leurs lignes terminées par un nombre ou pourvues de points de conduite ;
+ * les pages de fatwas, elles, tombent à 0 %.
+ */
+const LIGNE_SOMMAIRE = /(\.{4,}|…{2,}|[.·]\s*[.·]\s*[.·])|[٠-٩0-9]{1,4}\s*$/u;
+
+export function estPageSommaire(texte: string): boolean {
+  const lignes = texte
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  if (lignes.length < 6) return false;
+  const reperes = lignes.filter((l) => LIGNE_SOMMAIRE.test(l)).length;
+  return reperes >= 6 && reperes / lignes.length >= 0.5;
 }
 
 /**

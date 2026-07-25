@@ -9,6 +9,7 @@ export * from './gcs.js';
 export * from './drive.js';
 export * from './gemini.js';
 export * from './embeddings.js';
+export * from './themes.js';
 export * from './structuring.js';
 export * from './vision.js';
 export * from './tasks.js';

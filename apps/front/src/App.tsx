@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
+import Admin from './Admin.js';
 import { ApiError, ask } from './api.js';
 import { observerUtilisateur } from './auth.js';
+import { estCheminAdmin } from './config.js';
 import { DICT, type Lang } from './i18n.js';
 import PageViewer from './PageViewer.js';
 import Recherche from './Recherche.js';
 import type { AskSource, ScanRef, ChatMessage } from './types.js';
-import Upload from './Upload.js';
 
 const LANGS: Array<{ code: Lang; label: string }> = [
   { code: 'fr', label: 'FR' },
@@ -65,8 +66,17 @@ export default function App() {
   const [pageOuverte, setPageOuverte] = useState<ScanRef | null>(null);
   const [utilisateur, setUtilisateur] = useState<User | null>(null);
   // deux usages distincts qui cohabitent : poser une question, ou fouiller
-  // directement le corpus ; l'espace d'ajout reste à part, sous connexion
-  const [vue, setVue] = useState<'chat' | 'recherche' | 'ajout'>('chat');
+  // directement le corpus. L'administration, elle, vit sur une adresse à part
+  // qu'aucun lien ne donne — d'où la lecture de l'URL plutôt qu'un bouton.
+  const [vue, setVue] = useState<'chat' | 'recherche'>('chat');
+  const [admin, setAdmin] = useState(() => estCheminAdmin(window.location.pathname));
+
+  // le retour arrière du navigateur doit sortir de l'administration
+  useEffect(() => {
+    const onPop = () => setAdmin(estCheminAdmin(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => observerUtilisateur(setUtilisateur), []);
@@ -136,9 +146,18 @@ export default function App() {
   const derniersSuggestions = dernier?.suggestions ?? [];
   const clarificationActive = !loading && dernier?.role === 'assistant' ? dernier.clarification : undefined;
 
-  // La recherche est publique ; seul l'espace d'ajout demande une connexion.
-  if (vue === 'ajout') {
-    return <Upload t={t} utilisateur={utilisateur} onRetour={() => setVue('chat')} />;
+  // La consultation est publique ; l'administration exige un compte autorisé.
+  if (admin) {
+    return (
+      <Admin
+        t={t}
+        utilisateur={utilisateur}
+        onQuitter={() => {
+          window.history.pushState({}, '', '/');
+          setAdmin(false);
+        }}
+      />
+    );
   }
 
   return (
@@ -160,13 +179,6 @@ export default function App() {
                 {t.newChat}
               </button>
             )}
-            <button
-              onClick={() => setVue('ajout')}
-              title={t.addFatwas}
-              className="rounded-md border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
-            >
-              + {t.addFatwas}
-            </button>
             <div className="flex overflow-hidden rounded-md border border-stone-300">
               {LANGS.map((l) => (
                 <button

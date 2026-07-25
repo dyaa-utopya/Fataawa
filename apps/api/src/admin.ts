@@ -2,15 +2,21 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   type ApiConfig,
+  COL_FATWAS,
+  type FatwaStored,
   type LivreDoc,
+  SECTION_AUTRE,
+  TAXONOMIE,
   enqueueWorkerTask,
   extractNumeroPage,
+  fatwasCol,
   gcsSignedUploadUrl,
   isSupportedImageMime,
   livresCol,
   logger,
   pagesCol,
   sanitizeIdPart,
+  toFatwa,
 } from '@fataawa/core';
 import { type AuthConfig, requireUser } from './auth.js';
 import { asyncHandler } from './util.js';
@@ -47,6 +53,28 @@ const verificationSchema = z.object({
   livre: z.string().trim().min(1).max(200),
   fichiers: z.array(fichierSchema).min(1).max(2000),
 });
+
+/** Compte des manques d'un livre, tel que le rapport le rend. */
+export interface RapportLivre {
+  livreId: string;
+  titre: string;
+  total: number;
+  sansNumero: number;
+  sansThemeN1: number;
+  sansThemeN2: number;
+  sansThemeN3: number;
+  sansQuestion: number;
+  sansReponse: number;
+}
+
+export interface RapportExemple {
+  id: string;
+  numero_fatwa: string;
+  sous_question: string;
+  livre_titre: string;
+  manques: string[];
+  extrait: string;
+}
 
 export interface FichierPret {
   nom: string;
@@ -265,6 +293,95 @@ export function adminRouter(cfg: ApiConfig, auth: AuthConfig): Router {
       );
       logger.info({ par: _req.utilisateur?.email }, 'ingestion déclenchée manuellement');
       res.status(202).json({ lance: true });
+    }),
+  );
+
+  /** La taxonomie servie telle quelle : le front en fait la référence affichée. */
+  router.get('/themes', (_req, res) => {
+    res.status(200).json({
+      sectionAutre: SECTION_AUTRE,
+      chapitres: TAXONOMIE.map((c) => ({ nom: c.nom, sections: c.sections })),
+    });
+  });
+
+  /**
+   * Rapport d'anomalies : ce que le pipeline n'a pas su renseigner.
+   *
+   * Balaie la collection en entier plutôt que d'interroger par champ manquant —
+   * Firestore ne sait pas indexer l'absence, et une requête « champ == '' » ne
+   * remonterait pas les documents où il n'existe pas du tout.
+   */
+  router.get(
+    '/rapport',
+    asyncHandler(async (_req, res) => {
+      const titres = new Map<string, string>();
+      for (const d of (await livresCol().limit(200).get()).docs) {
+        titres.set(d.id, (d.data() as LivreDoc).titre ?? d.id);
+      }
+
+      const parLivre = new Map<string, RapportLivre>();
+      const exemples: RapportExemple[] = [];
+      let total = 0;
+      let curseur: string | null = null;
+      for (;;) {
+        let q = fatwasCol().orderBy('__name__').limit(500);
+        if (curseur !== null) q = q.startAfter(curseur);
+        const snap = await q.get();
+        if (snap.empty) break;
+        for (const doc of snap.docs) {
+          const data = doc.data() as FatwaStored;
+          const f = toFatwa(doc.id, data);
+          const livreId = f.livreId || '(hors pipeline)';
+          const r =
+            parLivre.get(livreId) ??
+            {
+              livreId,
+              titre: titres.get(livreId) ?? livreId,
+              total: 0,
+              sansNumero: 0,
+              sansThemeN1: 0,
+              sansThemeN2: 0,
+              sansThemeN3: 0,
+              sansQuestion: 0,
+              sansReponse: 0,
+            };
+          r.total++;
+          total++;
+          const manques: string[] = [];
+          if (f.numero === '') (r.sansNumero++, manques.push('numéro'));
+          if (f.sujetPrincipal === '') (r.sansThemeN1++, manques.push('thème 1'));
+          if (f.sousSujet === '') (r.sansThemeN2++, manques.push('thème 2'));
+          if (f.themeN3 === '') (r.sansThemeN3++, manques.push('thème 3'));
+          if ((data.question_arabe ?? '') === '') (r.sansQuestion++, manques.push('question'));
+          if ((data.reponse_arabe ?? '') === '') (r.sansReponse++, manques.push('réponse'));
+          parLivre.set(livreId, r);
+          if (manques.length > 0 && exemples.length < 40) {
+            exemples.push({
+              id: f.id,
+              numero_fatwa: f.numero,
+              sous_question: f.sousQuestion,
+              livre_titre: r.titre,
+              manques,
+              extrait: f.texte.slice(0, 160),
+            });
+          }
+        }
+        const dernier = snap.docs[snap.docs.length - 1];
+        if (!dernier || snap.size < 500) break;
+        curseur = dernier.id;
+      }
+
+      const livres = [...parLivre.values()].sort((a, b) => a.titre.localeCompare(b.titre));
+      res.status(200).json({
+        collection: COL_FATWAS,
+        total,
+        incompletes: livres.reduce(
+          (n, l) => n + Math.max(l.sansThemeN1, l.sansThemeN2, l.sansThemeN3),
+          0,
+        ),
+        livres,
+        exemples,
+      });
     }),
   );
 

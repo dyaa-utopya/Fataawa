@@ -80,3 +80,35 @@ export interface ChatMessage {
   suggestions?: string[];
   clarification?: ChatClarification;
 }
+
+export interface Taxonomie {
+  sectionAutre: string;
+  chapitres: Array<{ nom: string; sections: string[] }>;
+}
+
+export interface RapportLivre {
+  livreId: string;
+  titre: string;
+  total: number;
+  sansNumero: number;
+  sansThemeN1: number;
+  sansThemeN2: number;
+  sansThemeN3: number;
+  sansQuestion: number;
+  sansReponse: number;
+}
+
+export interface Rapport {
+  collection: string;
+  total: number;
+  incompletes: number;
+  livres: RapportLivre[];
+  exemples: Array<{
+    id: string;
+    numero_fatwa: string;
+    sous_question: string;
+    livre_titre: string;
+    manques: string[];
+    extrait: string;
+  }>;
+}

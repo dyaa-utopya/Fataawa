@@ -3,7 +3,9 @@ import type {
   AskResponse,
   FichierPret,
   LivreResume,
+  Rapport,
   ResultatRecherche,
+  Taxonomie,
   Verification,
 } from './types.js';
 
@@ -45,6 +47,15 @@ export async function demanderUploadUrls(
   fichiers: Array<{ nom: string; type: string }>,
 ): Promise<FichierPret[]> {
   return (await appelAdmin<{ fichiers: FichierPret[] }>('/upload-url', { livre, fichiers })).fichiers;
+}
+
+export async function listerThemes(): Promise<Taxonomie> {
+  return appelAdmin<Taxonomie>('/themes');
+}
+
+/** Relevé des fatwas incomplètes ; balaie la collection, d'où l'attente. */
+export async function chargerRapport(): Promise<Rapport> {
+  return appelAdmin<Rapport>('/rapport');
 }
 
 export async function adminIngerer(): Promise<void> {

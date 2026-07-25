@@ -66,6 +66,25 @@ export interface Dict {
   answerLabel: string;
   readMore: string;
   readLess: string;
+  adminTitle: string;
+  themesTab: string;
+  themesTitle: string;
+  themesHint: string;
+  themesChapters: string;
+  themesSections: string;
+  reportTab: string;
+  reportTitle: string;
+  reportCollection: string;
+  reportRefresh: string;
+  reportLoading: string;
+  reportBook: string;
+  reportNoNumber: string;
+  reportNoTheme1: string;
+  reportNoTheme2: string;
+  reportNoTheme3: string;
+  reportNoQuestion: string;
+  reportNoAnswer: string;
+  reportSamples: string;
 }
 
 export const DICT: Record<Lang, Dict> = {
@@ -141,6 +160,26 @@ export const DICT: Record<Lang, Dict> = {
     answerLabel: 'Réponse',
     readMore: 'Lire la fatwa',
     readLess: 'Réduire',
+    adminTitle: 'Administration',
+    themesTab: 'Thèmes',
+    themesTitle: 'Taxonomie appliquée à la structuration',
+    themesHint:
+      'Trois niveaux obligatoires : le chapitre et la section sont pris dans cette liste fermée, le sujet précis reste libre (deux à cinq mots). Un libellé hors liste est effacé plutôt que rapproché de force, et la fatwa apparaît dans le rapport.',
+    themesChapters: 'chapitres',
+    themesSections: 'sections',
+    reportTab: 'Rapport',
+    reportTitle: 'Fatwas incomplètes',
+    reportCollection: 'collection',
+    reportRefresh: 'Actualiser',
+    reportLoading: 'Analyse de la collection…',
+    reportBook: 'Livre',
+    reportNoNumber: 'sans n°',
+    reportNoTheme1: 'sans thème 1',
+    reportNoTheme2: 'sans thème 2',
+    reportNoTheme3: 'sans thème 3',
+    reportNoQuestion: 'sans question',
+    reportNoAnswer: 'sans réponse',
+    reportSamples: 'Exemples',
   },
   en: {
     appTitle: 'Fataawa',
@@ -213,6 +252,26 @@ export const DICT: Record<Lang, Dict> = {
     answerLabel: 'Answer',
     readMore: 'Read the fatwa',
     readLess: 'Collapse',
+    adminTitle: 'Administration',
+    themesTab: 'Themes',
+    themesTitle: 'Taxonomy applied when structuring',
+    themesHint:
+      'Three mandatory levels: chapter and section come from this closed list, the precise topic stays free (two to five words). A label outside the list is cleared rather than forced onto a near match, and the fatwa shows up in the report.',
+    themesChapters: 'chapters',
+    themesSections: 'sections',
+    reportTab: 'Report',
+    reportTitle: 'Incomplete fatwas',
+    reportCollection: 'collection',
+    reportRefresh: 'Refresh',
+    reportLoading: 'Scanning the collection…',
+    reportBook: 'Book',
+    reportNoNumber: 'no number',
+    reportNoTheme1: 'no theme 1',
+    reportNoTheme2: 'no theme 2',
+    reportNoTheme3: 'no theme 3',
+    reportNoQuestion: 'no question',
+    reportNoAnswer: 'no answer',
+    reportSamples: 'Samples',
   },
   ar: {
     appTitle: 'فتاوى',
@@ -281,5 +340,25 @@ export const DICT: Record<Lang, Dict> = {
     answerLabel: 'الجواب',
     readMore: 'قراءة الفتوى',
     readLess: 'طيّ',
+    adminTitle: 'الإدارة',
+    themesTab: 'الموضوعات',
+    themesTitle: 'تصنيف الموضوعات المعتمد',
+    themesHint:
+      'ثلاثة مستويات إلزامية: الباب والقسم من هذه القائمة المغلقة، والموضوع الدقيق حر (كلمتان إلى خمس). ما خرج عن القائمة يُترك فارغاً ويظهر في التقرير.',
+    themesChapters: 'أبواب',
+    themesSections: 'أقسام',
+    reportTab: 'التقرير',
+    reportTitle: 'فتاوى ناقصة',
+    reportCollection: 'المجموعة',
+    reportRefresh: 'تحديث',
+    reportLoading: 'جارٍ فحص المجموعة…',
+    reportBook: 'الكتاب',
+    reportNoNumber: 'بلا رقم',
+    reportNoTheme1: 'بلا باب',
+    reportNoTheme2: 'بلا قسم',
+    reportNoTheme3: 'بلا موضوع',
+    reportNoQuestion: 'بلا سؤال',
+    reportNoAnswer: 'بلا جواب',
+    reportSamples: 'أمثلة',
   },
 };

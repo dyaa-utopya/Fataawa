@@ -13,6 +13,7 @@ import {
   commenceDans,
   db,
   enqueueWorkerTask,
+  estPageSommaire,
   fatwaIdFrom,
   fatwaRef,
   fromPipeline,
@@ -132,7 +133,12 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           }
 
           const texte = (page.texteOcr ?? '').trim();
-          if (texte === '' || texte === '[PAGE_VIDE]') {
+          // Page vide ou page de sommaire : rien à en tirer. Le sommaire est
+          // écarté ici, avant l'appel au modèle — c'est déterministe et cela
+          // épargne une vingtaine d'appels par recueil.
+          const sommaire = estPageSommaire(texte);
+          if (texte === '' || texte === '[PAGE_VIDE]' || sommaire) {
+            if (sommaire) log.info({ pageId: pageDoc.id }, 'page de sommaire ignorée');
             await livreRef(livreId).update({
               curseurStructuration: page.numero,
               majAt: FieldValue.serverTimestamp(),
@@ -323,8 +329,10 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                   // rang normalisé : identifie la sous-question sans ambiguïté
                   sousQuestion: normaliseSousQuestion(fatwa.sousQuestion),
                   imageSource: page.gcsPath.slice(page.gcsPath.lastIndexOf('/') + 1),
-                  sujetPrincipal: fatwa.sujetPrincipal,
-                  sousSujet: fatwa.sousSujet,
+                  themeN1: fatwa.themeN1,
+                  themeN2: fatwa.themeN2,
+                  themeN3: fatwa.themeN3,
+                  themesComplets: fatwa.themesComplets,
                   texte: fatwa.texteComplet,
                   question: fatwa.question,
                   reponse: fatwa.reponse,
@@ -341,8 +349,9 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             ? {
                 numero: resultat.fatwaOuverte.numero,
                 sousQuestion: resultat.fatwaOuverte.sousQuestion,
-                sujetPrincipal: resultat.fatwaOuverte.sujetPrincipal,
-                sousSujet: resultat.fatwaOuverte.sousSujet,
+                themeN1: resultat.fatwaOuverte.themeN1,
+                themeN2: resultat.fatwaOuverte.themeN2,
+                themeN3: resultat.fatwaOuverte.themeN3,
                 textePartiel: resultat.fatwaOuverte.textePartiel,
                 // conserve la page d'ouverture d'origine tant que le fragment vit
                 depuisPage: fragment?.depuisPage ?? page.numero,
