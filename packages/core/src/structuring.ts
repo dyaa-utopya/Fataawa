@@ -73,7 +73,9 @@ export const STRUCTURATION_RESPONSE_SCHEMA = {
           reponse: { type: 'STRING' },
           texte_complet: { type: 'STRING' },
         },
-        required: ['texte_complet'],
+        // question et réponse sont exigées : sans elles, impossible de savoir
+        // où s'arrête l'exposé et où commence la réponse du comité
+        required: ['question', 'reponse', 'texte_complet'],
       },
     },
     fatwa_ouverte: {
@@ -120,8 +122,10 @@ Règles strictes :
    avec sa propre réponse. Produis alors UNE ENTRÉE PAR QUESTION, toutes avec le MÊME
    numero_fatwa, et renseigne sous_question avec le repère tel qu'imprimé (« الأول »,
    « أ », « 2 »…). Si la fatwa ne contient qu'une question, laisse sous_question vide.
-7. question / reponse : le texte de la question (ou de l'exposé) et celui de la réponse,
-   séparés. texte_complet : les deux réunis, dans l'ordre de lecture.
+7. question / reponse : OBLIGATOIRES et jamais vides. Sépare l'exposé du demandeur de la
+   réponse du comité. La réponse commence à son marqueur imprimé — « الجواب »,
+   « وبعد », « الحمد لله » — ou, à défaut de marqueur, à la première phrase qui répond.
+   texte_complet : les deux réunis, dans l'ordre de lecture, sans rien retirer.
 8. sujet_principal / sous_sujet : thème de fiqh court (الزكاة، الصلاة، النكاح…), déduit de
    la fatwa ENTIÈRE — jamais du seul début ni de la seule fin — en arabe si le texte
    l'est. Deux entrées d'une même fatwa peuvent avoir des sujets différents.
