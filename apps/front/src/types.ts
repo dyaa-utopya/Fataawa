@@ -38,6 +38,17 @@ export interface LivreResume {
   nbFatwas: number;
 }
 
+export interface Verification {
+  livreId: string;
+  total: number;
+  acceptes: number;
+  refuses: Array<{ nom: string; numeroPage: number | null; refus: string | null }>;
+  doublons: Array<{ numeroPage: number; noms: string[] }>;
+  plage: { premier: number; dernier: number } | null;
+  manquants: number[];
+  dejaPresentes: number;
+}
+
 export interface FichierPret {
   nom: string;
   url: string | null;

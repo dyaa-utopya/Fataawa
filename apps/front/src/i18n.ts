@@ -35,6 +35,14 @@ export interface Dict {
   uploading: string;
   uploadDone: string;
   booksInProgress: string;
+  filesSelected: string;
+  checking: string;
+  pagesDetected: string;
+  alreadyPresent: string;
+  duplicateWarning: string;
+  rejectedFiles: string;
+  missingPages: string;
+  fixDuplicates: string;
   errorNetwork: string;
   rateLimited: string;
   disclaimer: string;
@@ -77,6 +85,15 @@ export const DICT: Record<Lang, Dict> = {
     uploading: 'Envoi en cours…',
     uploadDone: 'Pages envoyées. Le traitement (OCR, structuration, indexation) a démarré ; les nouvelles fatwas apparaîtront dans la recherche au fur et à mesure.',
     booksInProgress: 'Livres et avancement',
+    filesSelected: 'images sélectionnées',
+    checking: 'Vérification des noms de fichiers…',
+    pagesDetected: 'Pages détectées :',
+    alreadyPresent: 'déjà en base',
+    duplicateWarning: 'Numéros de page en doublon :',
+    rejectedFiles: 'fichier(s) écarté(s)',
+    missingPages: 'Numéros absents de la série :',
+    fixDuplicates:
+      'Corrigez les noms de fichiers avant d’envoyer : plusieurs images portent le même numéro de page.',
     errorNetwork: 'Erreur de connexion, réessayez.',
     rateLimited: 'Trop de requêtes, patientez une minute.',
     disclaimer:
@@ -118,6 +135,14 @@ export const DICT: Record<Lang, Dict> = {
     uploading: 'Uploading…',
     uploadDone: 'Pages uploaded. Processing (OCR, structuring, indexing) has started; new fatwas will appear in search progressively.',
     booksInProgress: 'Books and progress',
+    filesSelected: 'images selected',
+    checking: 'Checking file names…',
+    pagesDetected: 'Detected pages:',
+    alreadyPresent: 'already stored',
+    duplicateWarning: 'Duplicate page numbers:',
+    rejectedFiles: 'file(s) skipped',
+    missingPages: 'Numbers missing from the range:',
+    fixDuplicates: 'Fix the file names before uploading: several images share the same page number.',
     errorNetwork: 'Connection error, please retry.',
     rateLimited: 'Too many requests, wait a minute.',
     disclaimer:
@@ -158,6 +183,14 @@ export const DICT: Record<Lang, Dict> = {
     uploading: 'جارٍ الإرسال…',
     uploadDone: 'تم إرسال الصفحات. بدأت المعالجة (المسح الضوئي، التنظيم، الفهرسة)؛ ستظهر الفتاوى الجديدة في البحث تدريجياً.',
     booksInProgress: 'الكتب والتقدّم',
+    filesSelected: 'صورة محدّدة',
+    checking: 'جارٍ التحقّق من أسماء الملفات…',
+    pagesDetected: 'الصفحات المكتشفة:',
+    alreadyPresent: 'موجودة مسبقاً',
+    duplicateWarning: 'أرقام صفحات مكرّرة:',
+    rejectedFiles: 'ملف/ملفات مستبعدة',
+    missingPages: 'أرقام ناقصة في التسلسل:',
+    fixDuplicates: 'صحّح أسماء الملفات قبل الإرسال: عدة صور تحمل رقم الصفحة نفسه.',
     errorNetwork: 'خطأ في الاتصال، أعد المحاولة.',
     rateLimited: 'طلبات كثيرة، انتظر دقيقة.',
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',

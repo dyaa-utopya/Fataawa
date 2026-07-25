@@ -1,5 +1,5 @@
 import { jeton } from './auth.js';
-import type { AskResponse, FichierPret, LivreResume } from './types.js';
+import type { AskResponse, FichierPret, LivreResume, Verification } from './types.js';
 
 export class ApiError extends Error {
   constructor(readonly status: number) {
@@ -25,6 +25,13 @@ async function appelAdmin<T>(chemin: string, body?: unknown): Promise<T> {
 
 export async function listerLivres(): Promise<LivreResume[]> {
   return (await appelAdmin<{ livres: LivreResume[] }>('/livres')).livres;
+}
+
+export async function verifierLot(
+  livre: string,
+  fichiers: Array<{ nom: string; type: string }>,
+): Promise<Verification> {
+  return appelAdmin<Verification>('/verifier', { livre, fichiers });
 }
 
 export async function demanderUploadUrls(
