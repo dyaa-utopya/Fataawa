@@ -12,7 +12,7 @@ import {
   logger,
   sanitizeIdPart,
 } from '@fataawa/core';
-import { creerIndex, indexer, resoudre } from './scan-names.js';
+import { creerIndex, indexer, nomLivrePropre, resoudre } from './scan-names.js';
 
 /**
  * Import one-shot des scans historiques : dossier Drive racine (un
@@ -38,6 +38,23 @@ const configSchema = z.object({
 
 const PAGE_FIRESTORE = 300;
 const MAX_BATCH = 400;
+/** Les scans sont rangés dans des sous-dossiers (« TRAITES », « A TRAITER »…). */
+const PROFONDEUR_MAX = 3;
+
+/** Toutes les images d'un livre, sous-dossiers compris. */
+async function imagesDuLivre(racineId: string): Promise<Array<{ id: string; name: string; mimeType: string }>> {
+  const images: Array<{ id: string; name: string; mimeType: string }> = [];
+  let niveau = [racineId];
+  for (let profondeur = 0; profondeur < PROFONDEUR_MAX && niveau.length > 0; profondeur++) {
+    const suivant: string[] = [];
+    for (const dossierId of niveau) {
+      images.push(...(await listAllImages(dossierId)));
+      for (const sous of await listBookFolders(dossierId)) suivant.push(sous.id);
+    }
+    niveau = suivant;
+  }
+  return images;
+}
 
 async function mapWithConcurrency<T>(
   items: T[],
@@ -68,18 +85,19 @@ async function main(): Promise<void> {
   logger.info({ livres: livres.length, dryRun }, 'import des scans démarré');
 
   for (const livre of livres) {
-    const log = logger.child({ livre: livre.name });
-    const images = await listAllImages(livre.id);
+    const nomLivre = nomLivrePropre(livre.name);
+    const log = logger.child({ livre: nomLivre });
+    const images = await imagesDuLivre(livre.id);
     if (images.length === 0) {
-      log.warn('dossier sans image');
+      log.warn('aucune image trouvée (sous-dossiers compris)');
       continue;
     }
-    const prefixe = `${cfg.LEGACY_IMAGE_PREFIX}${sanitizeIdPart(livre.name)}/`;
+    const prefixe = `${cfg.LEGACY_IMAGE_PREFIX}${sanitizeIdPart(nomLivre)}/`;
     log.info({ images: images.length, prefixe }, 'copie du livre');
 
     await mapWithConcurrency(images, cfg.CONCURRENCY, async (image) => {
       const gcsPath = `${prefixe}${image.name.normalize('NFC')}`;
-      indexer(index, livre.name, image.name, gcsPath);
+      indexer(index, nomLivre, image.name, gcsPath);
       try {
         if (await gcsExists(cfg.GCS_BUCKET, gcsPath)) {
           deja++;

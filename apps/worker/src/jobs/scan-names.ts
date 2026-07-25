@@ -25,6 +25,18 @@ export function clePage(nom: string): string | null {
   return `page${Number.parseInt(m[1], 10)}`;
 }
 
+/**
+ * Nom de livre exploitable : les dossiers Drive portent des marqueurs d'état
+ * héritée du pipeline Apps Script (« [TERMINÉ] … ») qui n'existent pas dans
+ * le champ image_source.
+ */
+export function nomLivrePropre(nom: string): string {
+  return nom
+    .normalize('NFC')
+    .replace(/\[[^\]]*\]/g, '')
+    .trim();
+}
+
 /** Index de recherche construit sur les objets copiés dans le bucket. */
 export interface IndexScans {
   parNom: Map<string, string>;
