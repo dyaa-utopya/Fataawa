@@ -122,9 +122,18 @@ Règles strictes :
    avec sa propre réponse. Produis alors UNE ENTRÉE PAR QUESTION, toutes avec le MÊME
    numero_fatwa, et renseigne sous_question avec le repère tel qu'imprimé (« الأول »,
    « أ », « 2 »…). Si la fatwa ne contient qu'une question, laisse sous_question vide.
-7. question / reponse : OBLIGATOIRES et jamais vides. Sépare l'exposé du demandeur de la
-   réponse du comité. La réponse commence à son marqueur imprimé — « الجواب »,
-   « وبعد », « الحمد لله » — ou, à défaut de marqueur, à la première phrase qui répond.
+7. question / reponse : OBLIGATOIRES et jamais vides. Dans ces recueils, la séparation est
+   marquée par deux abréviations imprimées : « س: » (سؤال) ouvre l'exposé du demandeur, et
+   « ج: » (جواب) ouvre la réponse du comité. Avec plusieurs questions, elles sont numérotées :
+   « س ٢: » … « ج ٢: ». La réponse commence EXACTEMENT à « ج: » (ou « ج ٢: »), pas avant.
+   Attentions :
+   - ne confonds pas ce marqueur avec un mot commençant par la lettre ج (جديد، جلسة…) : le
+     marqueur est une lettre isolée suivie de deux points, éventuellement d'un numéro ;
+   - « وبعد » et « الحمد لله » appartiennent souvent à la lettre du demandeur : ce ne sont
+     PAS des marqueurs de réponse ;
+   - l'exposé est fréquemment beaucoup plus long que la réponse ; c'est normal, ne coupe
+     pas l'exposé pour équilibrer les deux.
+   Si aucun marqueur « ج » n'apparaît, mets tout l'énoncé dans question et laisse reponse vide.
    texte_complet : les deux réunis, dans l'ordre de lecture, sans rien retirer.
 8. sujet_principal / sous_sujet : thème de fiqh court (الزكاة، الصلاة، النكاح…), déduit de
    la fatwa ENTIÈRE — jamais du seul début ni de la seule fin — en arabe si le texte
