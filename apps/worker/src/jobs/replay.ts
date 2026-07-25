@@ -24,7 +24,14 @@ import {
  * thématisées. À lancer avec FATWAS_COLLECTION pointant sur une collection
  * neuve : la collection en service n'est jamais touchée.
  *
- * RESET=1 remet à zéro les pages et le curseur des livres visés (rejeu propre).
+ * Deux niveaux de remise à zéro :
+ *  - RESET_STRUCT=1 : ne rejoue que le découpage. Les pages et leur texte OCR
+ *    sont conservés, seuls le curseur et l'état de lecture repartent de zéro.
+ *    C'est ce qu'il faut pour éprouver les règles de découpage : l'OCR donne le
+ *    même résultat à chaque fois, le refaire ne fait que perdre du temps et des
+ *    appels au modèle.
+ *  - RESET=1 : remise à zéro complète, OCR compris (scans remplacés, doute sur
+ *    la qualité du texte).
  */
 const configSchema = z.object({
   GOOGLE_CLOUD_PROJECT: z.string().min(1),
@@ -40,6 +47,7 @@ const configSchema = z.object({
   /** Nombre de passages d'ingestion enfilés après la copie. */
   INGESTIONS: z.coerce.number().int().min(1).max(200).default(30),
   RESET: z.string().optional(),
+  RESET_STRUCT: z.string().optional(),
 });
 
 async function supprimerPages(livreId: string): Promise<number> {
@@ -58,6 +66,7 @@ async function supprimerPages(livreId: string): Promise<number> {
 async function main(): Promise<void> {
   const cfg = configSchema.parse(process.env);
   const reset = cfg.RESET === '1' || cfg.RESET === 'true';
+  const resetStruct = cfg.RESET_STRUCT === '1' || cfg.RESET_STRUCT === 'true';
   const storage = new Storage();
   const bucket = storage.bucket(cfg.GCS_BUCKET);
 
@@ -87,6 +96,34 @@ async function main(): Promise<void> {
   for (const livre of livres) {
     const livreId = sanitizeIdPart(livre);
     const log = logger.child({ livre: livreId });
+
+    if (resetStruct && !reset) {
+      // le texte OCR est conservé : seul le découpage sera rejoué
+      await livreRef(livreId).set(
+        {
+          titre: livre,
+          curseurStructuration: 0,
+          fatwaOuverte: null,
+          dernierNumeroFatwa: '',
+          nbFatwas: 0,
+          majAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      await enqueueWorkerTask(
+        {
+          project: cfg.GOOGLE_CLOUD_PROJECT,
+          region: cfg.REGION,
+          workerUrl: cfg.WORKER_URL.replace(/\/$/, ''),
+          serviceAccountEmail: cfg.TASKS_SA_EMAIL,
+        },
+        cfg.OCR_QUEUE,
+        '/tasks/structurer',
+        { livreId },
+      );
+      log.info('découpage seul relancé, OCR conservé');
+      continue;
+    }
 
     if (reset) {
       const supprimees = await supprimerPages(livreId);
