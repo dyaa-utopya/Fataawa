@@ -151,7 +151,19 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             break;
           }
 
-          const fragment = livre.fatwaOuverte ?? null;
+          // Un fragment qui n'aboutit pas doit être abandonné : sans cela il
+          // survit aux pages vides (couverture, sommaire) et finit recousu à
+          // une fatwa sans rapport, des dizaines de pages plus loin.
+          const fragmentBrut = livre.fatwaOuverte ?? null;
+          const ecart = page.numero - (fragmentBrut?.depuisPage ?? page.numero);
+          const fragmentPerime = fragmentBrut !== null && ecart > cfg.structWindowPages + 2;
+          if (fragmentPerime) {
+            log.warn(
+              { pageId: pageDoc.id, ouvertePage: fragmentBrut?.depuisPage, ecart },
+              'fragment de fatwa abandonné : non abouti après plusieurs pages',
+            );
+          }
+          const fragment = fragmentPerime ? null : fragmentBrut;
           let resultat;
           try {
             resultat = await geminiStructurePage(
@@ -209,8 +221,14 @@ export function structurerRouter(cfg: WorkerConfig): Router {
 
           const batch = db().batch();
           const aEmbedder: string[] = [];
-          resultat.fatwasCompletes.forEach((fatwa, i) => {
+          // La même fatwa peut être extraite deux fois (chevauchement de
+          // fenêtres) : l'ID déterministe la dédoublonne, mais le compteur du
+          // livre ne doit pas pour autant compter deux fois — d'où la
+          // vérification d'existence avant écriture.
+          let creations = 0;
+          for (const [i, fatwa] of resultat.fatwasCompletes.entries()) {
             const id = fatwaIdFrom(livreId, fatwa.numero, `p${pageDoc.id}-${i}`, fatwa.sousQuestion);
+            if (!(await fatwaRef(id).get()).exists) creations++;
             // la première fatwa complète porte les pages du fragment recousu
             const pages =
               fragment && i === 0
@@ -235,7 +253,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
               { merge: true },
             );
             aEmbedder.push(id);
-          });
+          }
 
           const nouvelleOuverte: FatwaOuverteState | null = resultat.fatwaOuverte
             ? {
@@ -244,6 +262,8 @@ export function structurerRouter(cfg: WorkerConfig): Router {
                 sujetPrincipal: resultat.fatwaOuverte.sujetPrincipal,
                 sousSujet: resultat.fatwaOuverte.sousSujet,
                 textePartiel: resultat.fatwaOuverte.textePartiel,
+                // conserve la page d'ouverture d'origine tant que le fragment vit
+                depuisPage: fragment?.depuisPage ?? page.numero,
                 // une page entièrement en continuation cumule les pages du fragment
                 pages:
                   fragment && resultat.fatwasCompletes.length === 0
@@ -255,7 +275,7 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           batch.update(livreRef(livreId), {
             curseurStructuration: page.numero,
             fatwaOuverte: nouvelleOuverte,
-            nbFatwas: FieldValue.increment(resultat.fatwasCompletes.length),
+            nbFatwas: FieldValue.increment(creations),
             majAt: FieldValue.serverTimestamp(),
           });
           await batch.commit();

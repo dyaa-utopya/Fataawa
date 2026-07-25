@@ -26,6 +26,8 @@ export interface FatwaOuverteState {
   sousSujet: string;
   textePartiel: string;
   pages: PageSourceRef[];
+  /** Page où le fragment a été ouvert : sert à l'abandonner s'il n'aboutit pas. */
+  depuisPage?: number;
 }
 
 /** Document livres/{livreId} — livreId = ID du dossier Drive du livre. */
