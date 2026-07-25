@@ -35,6 +35,12 @@ BUCKET = os.environ.get("BUCKET", f"{PROJECT}-fataawa-scans")
 TOKEN = os.environ.get("ACCESS_TOKEN", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "gemini-embedding-001")
+# Collections de fatwas, en un seul endroit. Le retraitement des recueils écrit
+# dans une collection neuve pendant que l'API continue de servir l'ancienne ;
+# les deux valeurs sont journalisées à chaque déploiement, parce qu'un worker
+# redéployé sans cette variable écrivait jusqu'ici droit dans la production.
+FATWAS_ECRITURE = os.environ.get("FATWAS_COLLECTION", "fatawas_v2")
+FATWAS_LECTURE = os.environ.get("FATWAS_COLLECTION_API", "fatawas_db")
 SA_WORKER = f"sa-fataawa-worker@{PROJECT}.iam.gserviceaccount.com"
 SA_API = f"sa-fataawa-api@{PROJECT}.iam.gserviceaccount.com"
 CA_BUNDLE = "/root/.ccr/ca-bundle.crt"
@@ -493,10 +499,7 @@ def step_deploy_worker(images: dict[str, str]) -> str:
                                 "GEMINI_MODEL": GEMINI_MODEL,
                                 "EMBEDDING_MODEL": EMBEDDING_MODEL,
                                 "WORKER_URL": worker_url,
-                                # collection d'écriture des fatwas (retraitement)
-                                "FATWAS_COLLECTION": os.environ.get(
-                                    "FATWAS_COLLECTION", "fatawas_db"
-                                ),
+                                "FATWAS_COLLECTION": FATWAS_ECRITURE,
                                 "INGEST_BATCH": os.environ.get("INGEST_BATCH", "100"),
                             }
                         ),
@@ -513,6 +516,7 @@ def step_deploy_worker(images: dict[str, str]) -> str:
     if _merge_bindings(pol, [("roles/run.invoker", f"serviceAccount:{SA_WORKER}")]):
         req("POST", f"{base}:setIamPolicy", {"policy": pol})
     log(f"worker : {url2}")
+    log(f"worker : écrit les fatwas dans « {FATWAS_ECRITURE} »")
     return url2
 
 
@@ -567,6 +571,9 @@ def step_deploy_api(images: dict[str, str]) -> str:
                             # allowlist de l'espace d'ajout de fatwas (la
                             # consultation, elle, reste publique)
                             "ALLOWED_EMAILS": os.environ.get("ALLOWED_EMAILS", "dyaa@utopya.fr"),
+                            # collection servie au public, distincte de celle où
+                            # le retraitement écrit tant qu'il n'est pas validé
+                            "FATWAS_COLLECTION": FATWAS_LECTURE,
                             "REGION": REGION,
                             "WORKER_URL": worker_url,
                             "TASKS_SA_EMAIL": SA_WORKER,
@@ -582,6 +589,7 @@ def step_deploy_api(images: dict[str, str]) -> str:
     if _merge_bindings(pol, [("roles/run.invoker", "allUsers")]):
         req("POST", f"{base}:setIamPolicy", {"policy": pol})
     log(f"api : {url}")
+    log(f"api : lit les fatwas dans « {FATWAS_LECTURE} »")
     return url
 
 
@@ -645,7 +653,7 @@ def step_replay(images: dict[str, str]) -> None:
             ).get("uri", ""),
             "TASKS_SA_EMAIL": SA_WORKER,
             # collection cible : neuve par défaut, la production reste intacte
-            "FATWAS_COLLECTION": os.environ.get("FATWAS_COLLECTION", "fatawas_v2"),
+            "FATWAS_COLLECTION": FATWAS_ECRITURE,
             "LIVRES": os.environ.get("LIVRES", ""),
             "INGESTIONS": os.environ.get("INGESTIONS", "30"),
             "RESET": os.environ.get("RESET", ""),

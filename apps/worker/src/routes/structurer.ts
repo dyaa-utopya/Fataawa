@@ -3,6 +3,7 @@ import {
   FieldValue,
   type FatwaOuverteState,
   type FatwaStored,
+  LEASE_STRUCT_MS,
   type LivreDoc,
   type PageDoc,
   type PageSourceRef,
@@ -27,7 +28,6 @@ import {
 } from '@fataawa/core';
 import { asyncHandler, errorMessage, tasksRuntime } from '../util.js';
 
-const LEASE_MS = 8 * 60_000;
 const TIME_BUDGET_MS = 7 * 60_000;
 
 /** Un seul passage de structuration actif par livre (bail sur le doc livre). */
@@ -36,7 +36,7 @@ async function acquireLease(livreId: string): Promise<boolean> {
     const snap = await tx.get(livreRef(livreId));
     if (!snap.exists) return false;
     const lease = (snap.data() as LivreDoc).structLease;
-    if (lease && Date.now() - lease.toMillis() < LEASE_MS) return false;
+    if (lease && Date.now() - lease.toMillis() < LEASE_STRUCT_MS) return false;
     tx.update(livreRef(livreId), { structLease: Timestamp.now() });
     return true;
   });
@@ -81,7 +81,11 @@ export function structurerRouter(cfg: WorkerConfig): Router {
       const debut = Date.now();
       let pagesStructurees = 0;
       let fatwasEcrites = 0;
-      let etat: 'rattrape' | 'bloque' | 'attente_ocr' | 'budget' = 'budget';
+      let etat: 'rattrape' | 'bloque' | 'attente_ocr' | 'budget' | 'reinitialise' = 'budget';
+      // Génération du découpage, relevée au premier tour : si une remise à zéro
+      // survient pendant ce passage, on l'abandonne au lieu de réécrire le
+      // curseur qu'elle vient d'annuler.
+      let generation: number | null = null;
 
       try {
         while (
@@ -90,6 +94,13 @@ export function structurerRouter(cfg: WorkerConfig): Router {
         ) {
           const livreSnap = await livreRef(livreId).get();
           const livre = livreSnap.data() as LivreDoc;
+          const gen = livre.generationStruct ?? 0;
+          if (generation === null) generation = gen;
+          else if (gen !== generation) {
+            log.warn({ generation, gen }, 'passage abandonné : le découpage a été réinitialisé');
+            etat = 'reinitialise';
+            break;
+          }
           const curseur = livre.curseurStructuration ?? 0;
 
           const nextSnap = await pagesCol(livreId)

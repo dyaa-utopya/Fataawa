@@ -11,6 +11,9 @@ export type StatutOcr = (typeof STATUT_OCR)[keyof typeof STATUT_OCR];
 
 export type MoteurOcr = 'GEMINI' | 'VISION';
 
+/** Durée du bail de structuration : au-delà, un passage est réputé mort. */
+export const LEASE_STRUCT_MS = 8 * 60_000;
+
 /** Référence légère vers une page source (portée par les fatwas). */
 export interface PageSourceRef {
   numero: number;
@@ -45,6 +48,12 @@ export interface LivreDoc {
   dernierNumeroFatwa?: string;
   /** Bail de structuration (une seule structuration active par livre). */
   structLease?: Timestamp;
+  /**
+   * Incrémenté à chaque remise à zéro du découpage. Un passage en cours compare
+   * cette valeur à celle lue à son démarrage et s'arrête si elle a changé :
+   * sans cela il réécrirait le curseur que la remise à zéro vient d'annuler.
+   */
+  generationStruct?: number;
   creeAt: Timestamp;
   majAt: Timestamp;
 }

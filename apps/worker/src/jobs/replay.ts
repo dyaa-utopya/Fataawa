@@ -3,6 +3,8 @@ import { z } from 'zod';
 import {
   COL_FATWAS,
   FieldValue,
+  LEASE_STRUCT_MS,
+  type LivreDoc,
   enqueueWorkerTask,
   livreRef,
   livresCol,
@@ -49,6 +51,21 @@ const configSchema = z.object({
   RESET: z.string().optional(),
   RESET_STRUCT: z.string().optional(),
 });
+
+/**
+ * Attend qu'aucun passage de découpage ne tourne sur ce livre. Un passage en
+ * cours écrit le curseur à chaque page : s'il en reste un en vol, il réécrit le
+ * curseur juste après la remise à zéro et le rejeu ne repart pas de la page 1.
+ */
+async function attendreDecoupageArrete(livreId: string, log: typeof logger): Promise<void> {
+  for (let i = 0; i < 60; i++) {
+    const lease = ((await livreRef(livreId).get()).data() as LivreDoc | undefined)?.structLease;
+    if (!lease || Date.now() - lease.toMillis() > LEASE_STRUCT_MS) return;
+    if (i === 0) log.info('un découpage tourne encore : attente avant remise à zéro');
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+  log.warn('bail de découpage toujours tenu après 10 min — remise à zéro tout de même');
+}
 
 async function supprimerPages(livreId: string): Promise<number> {
   let total = 0;
@@ -99,6 +116,7 @@ async function main(): Promise<void> {
 
     if (resetStruct && !reset) {
       // le texte OCR est conservé : seul le découpage sera rejoué
+      await attendreDecoupageArrete(livreId, log);
       await livreRef(livreId).set(
         {
           titre: livre,
@@ -106,6 +124,8 @@ async function main(): Promise<void> {
           fatwaOuverte: null,
           dernierNumeroFatwa: '',
           nbFatwas: 0,
+          // coupe court à tout passage qui démarrerait malgré l'attente
+          generationStruct: FieldValue.increment(1),
           majAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
@@ -126,10 +146,12 @@ async function main(): Promise<void> {
     }
 
     if (reset) {
+      await attendreDecoupageArrete(livreId, log);
       const supprimees = await supprimerPages(livreId);
       await livreRef(livreId)
         .set(
           {
+            generationStruct: FieldValue.increment(1),
             // le titre doit être posé ici : l'ingestion ne le renseigne qu'à la
             // création du document, or le RESET le crée avant elle
             titre: livre,
