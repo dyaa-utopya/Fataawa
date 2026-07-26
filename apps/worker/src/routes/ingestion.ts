@@ -75,6 +75,9 @@ async function registerPage(
   });
   await livreRef(livreId).update({
     nbPages: FieldValue.increment(1),
+    // horodatage de la dernière page créée : le découpage s'en sert pour ne
+    // pas franchir un trou pendant que l'ingestion travaille encore
+    dernierePageAt: FieldValue.serverTimestamp(),
     majAt: FieldValue.serverTimestamp(),
   });
   await enqueueWorkerTask(tasksRuntime(cfg), cfg.ocrQueue, '/tasks/ocr-page', {

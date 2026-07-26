@@ -30,6 +30,13 @@ import {
 import { asyncHandler, errorMessage, tasksRuntime } from '../util.js';
 
 const TIME_BUDGET_MS = 7 * 60_000;
+/**
+ * Délai d'attente devant un trou de numérotation. Assez long pour couvrir la
+ * copie d'un recueil entier vers l'inbox (quelques minutes pour 500 scans),
+ * assez court pour ne pas immobiliser un livre auquel il manque vraiment une
+ * page. Au-delà, le trou est réputé définitif et signalé.
+ */
+const INGESTION_GRACE_MS = 15 * 60_000;
 
 /** Un seul passage de structuration actif par livre (bail sur le doc livre). */
 async function acquireLease(livreId: string): Promise<boolean> {
@@ -119,6 +126,30 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             break;
           }
           const page = pageDoc.data() as PageDoc;
+
+          // Trou dans la numérotation : les pages manquantes n'ont pas encore
+          // été créées par l'ingestion, qui ne suit pas l'ordre des numéros.
+          // Le curseur ne revient jamais en arrière : avancer ici condamnerait
+          // ces pages à n'être jamais découpées. C'est ce qui a fait perdre 91
+          // pages au recueil 2 et 87 au recueil 10, le découpage ayant démarré
+          // avant la fin de la copie. On patiente donc tant que des pages
+          // arrivent encore ; passé ce délai, le trou est réel (scan absent)
+          // et on le franchit en le signalant.
+          if (page.numero > curseur + 1) {
+            const derniere = livre.dernierePageAt?.toMillis() ?? 0;
+            if (Date.now() - derniere < INGESTION_GRACE_MS) {
+              log.info(
+                { curseur, prochaine: page.numero },
+                'découpage en attente : des pages manquent encore avant celle-ci',
+              );
+              etat = 'attente_ocr';
+              break;
+            }
+            log.warn(
+              { curseur, prochaine: page.numero, manquantes: page.numero - curseur - 1 },
+              'trou franchi : ces pages ne sont jamais arrivées',
+            );
+          }
 
           if (page.statutOcr === STATUT_OCR.QUARANTAINE) {
             // choix assumé : une page en quarantaine bloque le livre plutôt
