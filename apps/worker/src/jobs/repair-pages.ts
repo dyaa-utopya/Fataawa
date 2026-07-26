@@ -20,18 +20,20 @@ import {
  * s'ouvrait sur une réponse coupée en bas de feuille, sans indiquer qu'il y
  * avait une suite.
  *
- * Aucun appel au modèle ici, et c'est le point : tout est déjà en base. Le
- * texte de la fatwa d'un côté, le texte OCR de chaque page de l'autre, et une
- * comparaison — la part des tranches d'une page qui se retrouvent dans la
- * fatwa. Au-delà de 15 %, la page en fait partie. Mesuré sur un cas réel :
- * 33 % et 18 % sur les deux pages occupées, 0 % sur les quatre voisines.
+ * Aucun appel au modèle ici, et c'est le point : tout est déjà en base. Les
+ * pages du recueil, mises bout à bout, forment un texte continu ; on y situe
+ * le début de la fatwa puis sa fin, et les pages traversées sont les siennes.
  *
  * Seul le champ `pages` est réécrit. Le texte des fatwas n'est jamais touché.
  */
 const configSchema = z.object({
   GOOGLE_CLOUD_PROJECT: z.string().min(1),
-  /** Pages examinées après celle de départ ; une fatwa n'en déborde jamais plus. */
-  FENETRE: z.coerce.number().int().min(1).max(10).default(4),
+  /**
+   * Pages examinées après celle de départ. Mesuré sur le corpus : 27 fatwas
+   * occupent cinq pages, quatre en occupent six, une en occupe sept. Neuf
+   * laisse donc de la marge, et n'coûte que la lecture de textes déjà chargés.
+   */
+  FENETRE: z.coerce.number().int().min(1).max(15).default(9),
   /** Écriture réelle ; sinon on se contente de compter ce qui changerait. */
   APPLIQUER: z.string().optional(),
 });
@@ -75,10 +77,10 @@ async function main(): Promise<void> {
       if (texte === '' || depart === undefined) continue;
       examinees++;
 
-      // on regarde la page de départ, celle d'avant (une fatwa recousue peut
-      // commencer plus tôt) et les suivantes
+      // On regarde la page de départ, les deux d'avant (le découpage a pu
+      // enregistrer une page trop tard) et les suivantes.
       const candidats = [];
-      for (let n = depart - 1; n <= depart + cfg.FENETRE; n++) {
+      for (let n = depart - 2; n <= depart + cfg.FENETRE; n++) {
         const p = parNumero.get(n);
         if (p !== undefined && p.texte !== '') candidats.push({ ...p, numero: n });
       }

@@ -322,60 +322,78 @@ export function estPageSommaire(texte: string): boolean {
 }
 
 /**
- * Pages effectivement couvertes par une fatwa, mesurées et non devinées.
+ * Pages effectivement occupées par une fatwa.
  *
- * Une fatwa déborde souvent sur la page suivante, et le savoir importe : c'est
- * ce qui permet de montrer au lecteur la suite du scan au lieu de le laisser
- * devant une réponse coupée en bas de page.
+ * Les pages d'un recueil se suivent : mises bout à bout, elles forment un seul
+ * texte. On y situe le DÉBUT de la fatwa, puis sa FIN cherchée plus loin, et
+ * les pages que cet intervalle traverse sont celles qu'elle occupe. Une fatwa
+ * de sept pages ressort donc aussi naturellement qu'une fatwa d'une seule.
  *
- * On ne peut pas se fier à la fin du texte comme empreinte : « وبالله التوفيق
- * وصلى الله على نبينا محمد » clôt presque toutes les fatwas et figure donc sur
- * presque toutes les pages. On mesure au contraire le RECOUVREMENT — la part des
- * tranches de la page qui se retrouvent dans la fatwa. Relevé sur un cas réel
- * (fatwa 2677, question 14) : 33 % et 18 % sur les deux pages qu'elle occupe,
- * 0 % sur les quatre pages voisines. Le seuil est posé à 15 %.
+ * Cette voie a été prise après deux échecs instructifs. Chercher la fin du
+ * texte comme empreinte ne marche pas : « وبالله التوفيق وصلى الله على نبينا
+ * محمد » clôt presque toutes les fatwas et se trouve donc partout. Mesurer la
+ * part d'une page présente dans la fatwa ne marche pas davantage : chaque page
+ * porte l'en-tête courant du recueil et les signatures du comité, ce qui suffit
+ * à franchir n'importe quel seuil bas — une fatwa de 900 caractères ressortait
+ * ainsi sur sept pages. Retirer ce décor déplaçait le problème, la formule de
+ * clôture appartenant à la fois au décor et au texte.
+ *
+ * L'ancrage règle les deux d'un coup : la fin est cherchée APRÈS le début, donc
+ * c'est la bonne occurrence qu'on trouve, et aucun seuil n'est à régler.
  */
-const TAILLE_TRANCHE = 60;
-const RECOUVREMENT_MINIMAL = 0.15;
-
-export function recouvrementPage(textePage: string, texteFatwa: string): number {
-  const p = normaliserPourComparaison(textePage);
-  const f = normaliserPourComparaison(texteFatwa);
-  if (p.length < TAILLE_TRANCHE) return 0;
-  let total = 0;
-  let trouvees = 0;
-  for (let i = 0; i + TAILLE_TRANCHE <= p.length; i += TAILLE_TRANCHE) {
-    total++;
-    if (f.includes(p.slice(i, i + TAILLE_TRANCHE))) trouvees++;
-  }
-  return total === 0 ? 0 : trouvees / total;
-}
+/** Longueur des sondes de texte, en lettres arabes, une fois la forme normalisée. */
+const SONDE = 50;
+/** Décalage entre deux sondes : l'OCR peut abîmer l'une et pas la suivante. */
+const PAS = 25;
 
 export function pagesCouvertes<T>(
   texteFatwa: string,
   candidates: Array<{ ref: T; texte: string; numero: number }>,
   depart: number,
 ): T[] {
-  const retenus = new Set(
-    candidates
-      .filter((c) => recouvrementPage(c.texte, texteFatwa) >= RECOUVREMENT_MINIMAL)
-      .map((c) => c.numero),
-  );
-  // La page de départ est acquise : c'est là que la fatwa commence, même si
-  // l'OCR y est trop pauvre pour atteindre le seuil.
-  retenus.add(depart);
+  const ordonnees = [...candidates].sort((a, b) => a.numero - b.numero);
+  const parNumero = new Map(ordonnees.map((c) => [c.numero, c.ref]));
+  const secours = parNumero.get(depart);
+  const repli = secours === undefined ? [] : [secours];
 
-  // Une fatwa occupe des pages QUI SE SUIVENT. Sans cette contrainte, une fatwa
-  // courte — dont le texte est en bonne part la formule de clôture, présente
-  // partout — s'accroche à une page lointaine et l'on obtient des séries
-  // absurdes du type [431, 434]. On ne garde donc que la suite continue autour
-  // de la page de départ.
-  const suite: number[] = [depart];
-  for (let n = depart + 1; retenus.has(n); n++) suite.push(n);
-  for (let n = depart - 1; retenus.has(n); n--) suite.unshift(n);
+  let corpus = '';
+  const bornes: Array<{ numero: number; debut: number; fin: number }> = [];
+  for (const c of ordonnees) {
+    const d = corpus.length;
+    corpus += normaliserPourComparaison(c.texte);
+    bornes.push({ numero: c.numero, debut: d, fin: corpus.length });
+  }
+  const f = normaliserPourComparaison(texteFatwa);
+  if (f.length < SONDE) return repli;
 
-  const parNumero = new Map(candidates.map((c) => [c.numero, c.ref]));
-  return suite.map((n) => parNumero.get(n)).filter((r): r is T => r !== undefined);
+  // début : la première sonde du texte de la fatwa qu'on retrouve dans le
+  // corpus — on en essaie plusieurs, l'OCR pouvant avoir abîmé la toute première
+  let debutFatwa = -1;
+  for (let i = 0; i < Math.min(Math.floor(f.length / 2), 300); i += PAS) {
+    const p = corpus.indexOf(f.slice(i, i + SONDE));
+    if (p !== -1) {
+      debutFatwa = Math.max(0, p - i);
+      break;
+    }
+  }
+  if (debutFatwa < 0) return repli;
+
+  // fin : la sonde la plus tardive retrouvée APRÈS le début. À défaut, on tombe
+  // sur la longueur du texte, ce qui reste une borne raisonnable.
+  let finFatwa = debutFatwa + f.length;
+  for (let i = f.length - SONDE; i > Math.floor(f.length / 2); i -= PAS) {
+    const p = corpus.indexOf(f.slice(i, i + SONDE), debutFatwa);
+    if (p !== -1) {
+      finFatwa = p + SONDE;
+      break;
+    }
+  }
+
+  const retenues = bornes
+    .filter((b) => b.debut < finFatwa && b.fin > debutFatwa)
+    .map((b) => parNumero.get(b.numero))
+    .filter((r): r is T => r !== undefined);
+  return retenues.length > 0 ? retenues : repli;
 }
 
 /**

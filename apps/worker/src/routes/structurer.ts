@@ -361,9 +361,9 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             } else {
               creations++;
             }
-            // Pages réellement occupées, mesurées sur le texte rendu : une fatwa
-            // déborde souvent sur la page suivante, et l'ignorer laissait le
-            // lecteur devant un scan coupé en bas de page.
+            // Pages réellement occupées, situées dans le texte continu des
+            // pages : une fatwa déborde souvent sur la suivante, et l'ignorer
+            // laissait le lecteur devant un scan coupé en bas de page.
             const couvertes = pagesCouvertes(
               fatwa.texteComplet,
               [
