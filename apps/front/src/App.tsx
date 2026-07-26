@@ -7,6 +7,7 @@ import { estCheminAdmin } from './config.js';
 import { DICT, type Lang } from './i18n.js';
 import PageViewer from './PageViewer.js';
 import Recherche from './Recherche.js';
+import Voyelles from './Voyelles.js';
 import type { AskSource, ScanRef, ChatMessage } from './types.js';
 
 /**
@@ -83,7 +84,7 @@ export default function App() {
   // deux usages distincts qui cohabitent : poser une question, ou fouiller
   // directement le corpus. L'administration, elle, vit sur une adresse à part
   // qu'aucun lien ne donne — d'où la lecture de l'URL plutôt qu'un bouton.
-  const [vue, setVue] = useState<'chat' | 'recherche'>('chat');
+  const [vue, setVue] = useState<'chat' | 'recherche' | 'voyelles'>('chat');
   const [admin, setAdmin] = useState(() => estCheminAdmin(window.location.pathname));
 
   // le retour arrière du navigateur doit sortir de l'administration
@@ -248,6 +249,9 @@ export default function App() {
             {([
               ['chat', t.askTab],
               ['recherche', t.searchTab],
+              // Le vocaliseur est un produit à part : rien du corpus, aucune
+              // mémoire. Il partage l'onglet parce qu'il partage le public.
+              ['voyelles', t.vowelsTab],
             ] as const).map(([code, label]) => (
               <button
                 key={code}
@@ -264,7 +268,9 @@ export default function App() {
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {vue === 'recherche' ? (
+        {vue === 'voyelles' ? (
+          <Voyelles t={t} />
+        ) : vue === 'recherche' ? (
           <Recherche t={t} onVoirPage={setPageOuverte} />
         ) : (
         <div className="mx-auto w-full max-w-3xl px-4 py-6">

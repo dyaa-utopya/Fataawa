@@ -14,3 +14,12 @@ export const CHEMIN_ADMIN = `/${import.meta.env.VITE_ADMIN_PATH ?? 'a7f3c9e2b14d
 export function estCheminAdmin(pathname: string): boolean {
   return pathname.replace(/\/+$/, '') === CHEMIN_ADMIN;
 }
+
+/**
+ * Longueur maximale du texte soumis au vocaliseur — trois pages.
+ *
+ * Mesuré sur les 1 439 pages de vrai texte du corpus : 1 014 caractères en
+ * médiane, 1 187 au 90ᵉ centile. Le serveur applique la même borne ; celle-ci
+ * n'est là que pour l'annoncer avant l'envoi.
+ */
+export const LIMITE_VOCALISATION = 4000;

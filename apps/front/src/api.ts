@@ -121,6 +121,22 @@ export async function ask(
  * Recherche directe : renvoie les fatwas elles-mêmes, sans réponse rédigée.
  * Publique elle aussi, et indépendante de la conversation en cours.
  */
+/**
+ * Vocalisation — service distinct : aucune conversation, aucun corpus. Le texte
+ * n'est pas conservé côté serveur.
+ */
+export async function vocaliser(
+  texte: string,
+): Promise<{ texte: string; vocalises: number; refuses: number; mots: number }> {
+  const res = await fetch('/api/v1/voyelles', {
+    method: 'POST',
+    headers: await entetesPubliques(),
+    body: JSON.stringify({ texte }),
+  });
+  if (!res.ok) throw new ApiError(res.status);
+  return (await res.json()) as { texte: string; vocalises: number; refuses: number; mots: number };
+}
+
 export async function rechercher(requete: string, limite = 15): Promise<ResultatRecherche[]> {
   const res = await fetch('/api/v1/search', {
     method: 'POST',

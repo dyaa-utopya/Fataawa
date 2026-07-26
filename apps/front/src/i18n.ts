@@ -57,6 +57,20 @@ export interface Dict {
   disclaimer: string;
   askTab: string;
   searchTab: string;
+  vowelsTab: string;
+  /** Vocaliseur — produit distinct, d'où son propre bloc de libellés. */
+  vowelsTitle: string;
+  vowelsHint: string;
+  vowelsPlaceholder: string;
+  vowelsChars: string;
+  vowelsTooLong: string;
+  vowelsStart: string;
+  vowelsWorking: string;
+  vowelsDone: string;
+  vowelsRefused: string;
+  vowelsFaithful: string;
+  copy: string;
+  copied: string;
   searchTitle: string;
   searchBody: string;
   searchPlaceholder: string;
@@ -159,6 +173,21 @@ export const DICT: Record<Lang, Dict> = {
       'Assistant documentaire : il rapporte le contenu des fatwas citées et ne remplace pas l’avis d’un savant.',
     askTab: 'Question / réponse',
     searchTab: 'Recherche',
+    vowelsTab: 'Voyelles',
+    vowelsTitle: 'Vocaliser un texte arabe',
+    vowelsHint:
+      'Collez jusqu’à trois pages de texte arabe : il vous est rendu voyellé, pour être lu à voix haute sans faute de désinence. Le texte n’est ni modifié ni conservé.',
+    vowelsPlaceholder: 'Collez ici le texte arabe à vocaliser…',
+    vowelsChars: 'caractères',
+    vowelsTooLong: 'Texte trop long : retirez une partie.',
+    vowelsStart: 'Vocaliser',
+    vowelsWorking: 'Vocalisation en cours…',
+    vowelsDone: 'mots vocalisés',
+    vowelsRefused:
+      'mot(s) laissé(s) sans voyelles : le modèle les avait modifiés, l’original a été rétabli.',
+    vowelsFaithful: 'Texte restitué à l’identique, aux signes de vocalisation près.',
+    copy: 'Copier',
+    copied: 'Copié',
     searchTitle: 'Recherche dans les fatwas',
     searchBody:
       'Les fatwas sont rendues telles qu’elles sont écrites, sans réponse rédigée : décrivez le sujet cherché, en français ou en arabe.',
@@ -260,6 +289,20 @@ export const DICT: Record<Lang, Dict> = {
       'Documentary assistant: it reports the content of the cited fatwas and does not replace a scholar’s advice.',
     askTab: 'Question & answer',
     searchTab: 'Search',
+    vowelsTab: 'Vowels',
+    vowelsTitle: 'Add vowels to an Arabic text',
+    vowelsHint:
+      'Paste up to three pages of Arabic: it comes back fully vowelled, so it can be read aloud without case-ending mistakes. The text is neither altered nor stored.',
+    vowelsPlaceholder: 'Paste the Arabic text to vowelise here…',
+    vowelsChars: 'characters',
+    vowelsTooLong: 'Text too long: remove some of it.',
+    vowelsStart: 'Add vowels',
+    vowelsWorking: 'Working…',
+    vowelsDone: 'words vowelled',
+    vowelsRefused: 'word(s) left unvowelled: the model had altered them, the original was restored.',
+    vowelsFaithful: 'Text returned unchanged, apart from the vowel marks.',
+    copy: 'Copy',
+    copied: 'Copied',
     searchTitle: 'Search the fatwas',
     searchBody:
       'Fatwas are shown exactly as written, with no generated answer: describe the topic you are looking for, in English or in Arabic.',
@@ -358,6 +401,20 @@ export const DICT: Record<Lang, Dict> = {
     disclaimer: 'مساعد وثائقي: ينقل مضمون الفتاوى المذكورة ولا يغني عن سؤال أهل العلم.',
     askTab: 'سؤال وجواب',
     searchTab: 'بحث',
+    vowelsTab: 'التشكيل',
+    vowelsTitle: 'تشكيل نصّ عربي',
+    vowelsHint:
+      'الصق ما يصل إلى ثلاث صفحات من النصّ العربي، فيُعاد إليك مشكولًا ليُقرأ جهرًا بلا خطأ في الإعراب. لا يُعدَّل النصّ ولا يُحفظ.',
+    vowelsPlaceholder: 'الصق هنا النصّ العربي المطلوب تشكيله…',
+    vowelsChars: 'حرفًا',
+    vowelsTooLong: 'النصّ أطول من اللازم، احذف منه شيئًا.',
+    vowelsStart: 'شكّل النصّ',
+    vowelsWorking: 'جارٍ التشكيل…',
+    vowelsDone: 'كلمة مشكولة',
+    vowelsRefused: 'كلمة تُركت بلا تشكيل: غيّرها النموذج، فأُعيد الأصل.',
+    vowelsFaithful: 'أُعيد النصّ كما هو، لم يُضف إليه غير علامات التشكيل.',
+    copy: 'نسخ',
+    copied: 'تم النسخ',
     searchTitle: 'البحث في الفتاوى',
     searchBody: 'تُعرض الفتاوى كما هي دون صياغة جديدة: اكتب الموضوع الذي تبحث عنه.',
     searchPlaceholder: 'كلمة مفتاحية أو موضوع…',

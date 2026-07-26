@@ -34,6 +34,11 @@ REGION = os.environ.get("REGION", "us-central1")
 BUCKET = os.environ.get("BUCKET", f"{PROJECT}-fataawa-scans")
 TOKEN = os.environ.get("ACCESS_TOKEN", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+# Le vocaliseur est un produit distinct, donc un modèle distinct — c'était la
+# raison de le séparer. Mesuré sur 1 964 mots du corpus : gemini-3.1-flash-lite
+# (celui du pipeline) altère 27 mots, gemini-3.6-flash 15, pour la même
+# proportion vocalisée. Le monter ici ne touche ni à l'OCR ni au découpage.
+VOCALISATION_MODEL = os.environ.get("VOCALISATION_MODEL", "gemini-3.6-flash")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "gemini-embedding-001")
 # Collections de fatwas, en un seul endroit. Le retraitement des recueils écrit
 # dans une collection neuve pendant que l'API continue de servir l'ancienne ;
@@ -589,6 +594,7 @@ def step_deploy_api(images: dict[str, str]) -> str:
                             "GOOGLE_CLOUD_PROJECT": PROJECT,
                             "GCS_BUCKET": BUCKET,
                             "GEMINI_MODEL": GEMINI_MODEL,
+                            "VOCALISATION_MODEL": VOCALISATION_MODEL,
                             "EMBEDDING_MODEL": EMBEDDING_MODEL,
                             # allowlist de l'espace d'ajout de fatwas (la
                             # consultation, elle, reste publique)
@@ -621,6 +627,7 @@ def step_deploy_api(images: dict[str, str]) -> str:
     log(f"api : lit les fatwas dans « {FATWAS_LECTURE} »")
     mode = "application" if os.environ.get("APP_CHECK_ENFORCE", "") in ("1", "true") else "observation"
     log(f"api : App Check en mode {mode}")
+    log(f"api : vocaliseur sur « {VOCALISATION_MODEL} »")
     return url
 
 

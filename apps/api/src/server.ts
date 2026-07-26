@@ -12,6 +12,7 @@ import { VectorIndexError, handleAsk } from './ask.js';
 import { parseAppCheckConfig, parseAuthConfig, requireAppCheck } from './auth.js';
 import { TokenBucketLimiter } from './ratelimit.js';
 import { rechercher } from './search.js';
+import { vocaliser } from './voyelles.js';
 import { asyncHandler } from './util.js';
 
 /**
@@ -58,6 +59,12 @@ function parIp(limiter: TokenBucketLimiter): express.RequestHandler {
 // martèlement continu non
 const limiterAsk = parIp(new TokenBucketLimiter(cfg.askRateLimitRpm, Math.ceil(cfg.askRateLimitRpm / 2)));
 const limiterMw = parIp(new TokenBucketLimiter(cfg.rateLimitRpm));
+// Le vocaliseur coûte davantage qu'une recherche : jusqu'à trois pages de
+// texte à produire, donc une génération longue. Son propre compteur, pour
+// qu'un usage intensif du vocaliseur ne ferme pas la recherche, ni l'inverse.
+const limiterVoyelles = parIp(
+  new TokenBucketLimiter(cfg.vocalisationRateLimitRpm, Math.ceil(cfg.vocalisationRateLimitRpm / 2)),
+);
 
 const v1 = Router();
 
@@ -95,7 +102,10 @@ app.get('/healthz', (_req, res) => {
   res.status(200).json({ ok: true, service: 'fataawa-api' });
 });
 app.get('/', (_req, res) => {
-  res.status(200).json({ service: 'fataawa-api', routes: ['/v1/ask', '/v1/images/:livreId/:pageId'] });
+  res.status(200).json({
+    service: 'fataawa-api',
+    routes: ['/v1/ask', '/v1/search', '/v1/voyelles', '/v1/images/:livreId/:pageId'],
+  });
 });
 
 // Recherche directe : les fatwas telles quelles, sans réponse générée.
@@ -105,6 +115,18 @@ v1.post(
   attestation,
   asyncHandler(async (req, res) => {
     res.status(200).json(await rechercher(cfg, req.body));
+  }),
+);
+
+// Vocalisation — produit distinct : ni corpus, ni mémoire, ni recherche. Le
+// texte soumis n'est jamais enregistré, et les journaux n'en gardent que des
+// compteurs.
+v1.post(
+  '/voyelles',
+  limiterVoyelles,
+  attestation,
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await vocaliser(cfg, req.body));
   }),
 );
 

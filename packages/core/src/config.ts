@@ -147,6 +147,14 @@ const apiConfigSchema = z.object({
   LEGACY_IMAGE_PREFIX: z.string().default('legacy/'),
   /** Préfixe de dépôt des nouveaux scans (identique au worker). */
   GCS_INBOX_PREFIX: z.string().default('inbox/'),
+  /**
+   * Modèle du vocaliseur — produit distinct, donc réglage distinct. Mesuré sur
+   * 1 964 mots du corpus : gemini-3.1-flash-lite (celui du pipeline) altère
+   * 27 mots, gemini-3.6-flash en altère 15, pour la même proportion vocalisée.
+   * Le pouvoir monter sans toucher au découpage était la raison de le séparer.
+   */
+  VOCALISATION_MODEL: z.string().min(1).default('gemini-3.6-flash'),
+  VOCALISATION_RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(6),
   /** Nécessaires au déclenchement de l'ingestion depuis l'espace d'ajout. */
   REGION: z.string().min(1).default('us-central1'),
   WORKER_URL: z.string().default(''),
@@ -159,6 +167,9 @@ export interface ApiConfig {
   gcsBucket: string;
   geminiApiKey: string;
   geminiModel: string;
+  /** Modèle du vocaliseur, indépendant de celui du pipeline. */
+  vocalisationModel: string;
+  vocalisationRateLimitRpm: number;
   embeddingModel: string;
   embeddingDim: number;
   topK: number;
@@ -182,6 +193,8 @@ export function parseApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
     gcsBucket: raw.GCS_BUCKET,
     geminiApiKey: raw.GEMINI_API_KEY,
     geminiModel: raw.GEMINI_MODEL,
+    vocalisationModel: raw.VOCALISATION_MODEL,
+    vocalisationRateLimitRpm: raw.VOCALISATION_RATE_LIMIT_RPM,
     embeddingModel: raw.EMBEDDING_MODEL,
     embeddingDim: raw.EMBEDDING_DIM,
     topK: raw.TOP_K,
