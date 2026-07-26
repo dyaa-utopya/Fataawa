@@ -39,8 +39,10 @@ EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "gemini-embedding-001")
 # dans une collection neuve pendant que l'API continue de servir l'ancienne ;
 # les deux valeurs sont journalisées à chaque déploiement, parce qu'un worker
 # redéployé sans cette variable écrivait jusqu'ici droit dans la production.
+# Depuis la bascule du 26/07, les deux pointent sur la collection retraitée :
+# l'ancienne (fatawas_db) reste en place, intacte, pour un retour arrière.
 FATWAS_ECRITURE = os.environ.get("FATWAS_COLLECTION", "fatawas_v2")
-FATWAS_LECTURE = os.environ.get("FATWAS_COLLECTION_API", "fatawas_db")
+FATWAS_LECTURE = os.environ.get("FATWAS_COLLECTION_API", "fatawas_v2")
 SA_WORKER = f"sa-fataawa-worker@{PROJECT}.iam.gserviceaccount.com"
 SA_API = f"sa-fataawa-api@{PROJECT}.iam.gserviceaccount.com"
 CA_BUNDLE = "/root/.ccr/ca-bundle.crt"
