@@ -353,15 +353,29 @@ export function recouvrementPage(textePage: string, texteFatwa: string): number 
 
 export function pagesCouvertes<T>(
   texteFatwa: string,
-  candidates: Array<{ ref: T; texte: string }>,
-  depart: T,
+  candidates: Array<{ ref: T; texte: string; numero: number }>,
+  depart: number,
 ): T[] {
-  const retenues = candidates
-    .filter((c) => recouvrementPage(c.texte, texteFatwa) >= RECOUVREMENT_MINIMAL)
-    .map((c) => c.ref);
-  // la page de départ est acquise : c'est là que la fatwa commence, même si
-  // l'OCR y est trop pauvre pour atteindre le seuil
-  return retenues.includes(depart) ? retenues : [depart, ...retenues];
+  const retenus = new Set(
+    candidates
+      .filter((c) => recouvrementPage(c.texte, texteFatwa) >= RECOUVREMENT_MINIMAL)
+      .map((c) => c.numero),
+  );
+  // La page de départ est acquise : c'est là que la fatwa commence, même si
+  // l'OCR y est trop pauvre pour atteindre le seuil.
+  retenus.add(depart);
+
+  // Une fatwa occupe des pages QUI SE SUIVENT. Sans cette contrainte, une fatwa
+  // courte — dont le texte est en bonne part la formule de clôture, présente
+  // partout — s'accroche à une page lointaine et l'on obtient des séries
+  // absurdes du type [431, 434]. On ne garde donc que la suite continue autour
+  // de la page de départ.
+  const suite: number[] = [depart];
+  for (let n = depart + 1; retenus.has(n); n++) suite.push(n);
+  for (let n = depart - 1; retenus.has(n); n--) suite.unshift(n);
+
+  const parNumero = new Map(candidates.map((c) => [c.numero, c.ref]));
+  return suite.map((n) => parNumero.get(n)).filter((r): r is T => r !== undefined);
 }
 
 /**

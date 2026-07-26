@@ -80,12 +80,11 @@ async function main(): Promise<void> {
       const candidats = [];
       for (let n = depart - 1; n <= depart + cfg.FENETRE; n++) {
         const p = parNumero.get(n);
-        if (p !== undefined && p.texte !== '') candidats.push(p);
+        if (p !== undefined && p.texte !== '') candidats.push({ ...p, numero: n });
       }
-      const depuis = parNumero.get(depart);
-      if (depuis === undefined) continue;
+      if (!parNumero.has(depart)) continue;
 
-      const trouvees = pagesCouvertes(texte, candidats, depuis.ref).sort(
+      const trouvees = pagesCouvertes(texte, candidats, depart).sort(
         (a, b) => a.numero - b.numero,
       );
       const numeros = trouvees.map((p) => p.numero);

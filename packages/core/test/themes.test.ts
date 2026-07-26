@@ -129,10 +129,10 @@ describe('pagesCouvertes', () => {
       pagesCouvertes(
         fatwa,
         [
-          { ref: 30, texte: `${CLOTURE} نص sans rapport avec cette fatwa، عن موضوع آخر تماما، ${'ك'.repeat(300)}` },
-          { ref: 31, texte: debut },
-          { ref: 32, texte: suite },
-          { ref: 33, texte: `${CLOTURE} ${'ب'.repeat(400)}` },
+          { ref: 30, numero: 30, texte: `${CLOTURE} نص sans rapport avec cette fatwa، عن موضوع آخر تماما، ${'ك'.repeat(300)}` },
+          { ref: 31, numero: 31, texte: debut },
+          { ref: 32, numero: 32, texte: suite },
+          { ref: 33, numero: 33, texte: `${CLOTURE} ${'ب'.repeat(400)}` },
         ],
         31,
       ).sort((a, b) => a - b),
@@ -141,10 +141,35 @@ describe('pagesCouvertes', () => {
 
   it('ne se laisse pas prendre à la formule de clôture, présente partout', () => {
     // c'est ce piège qui rendait la fin de texte inutilisable comme empreinte
-    expect(pagesCouvertes(fatwa, [{ ref: 99, texte: `${CLOTURE} ${'س'.repeat(500)}` }], 1)).toEqual([1]);
+    expect(
+      pagesCouvertes(
+        fatwa,
+        [
+          { ref: 1, numero: 1, texte: fatwa },
+          { ref: 99, numero: 99, texte: `${CLOTURE} ${'س'.repeat(500)}` },
+        ],
+        1,
+      ),
+    ).toEqual([1]);
   });
 
   it('garde toujours la page de départ, même sans recouvrement mesurable', () => {
-    expect(pagesCouvertes(fatwa, [{ ref: 7, texte: 'ocr illisible' }], 7)).toEqual([7]);
+    expect(pagesCouvertes(fatwa, [{ ref: 7, numero: 7, texte: 'ocr illisible' }], 7)).toEqual([7]);
+  });
+
+  it('n’accroche pas une page lointaine : une fatwa occupe des pages qui se suivent', () => {
+    // relevé en simulation : [431, 434] pour une fatwa de 336 caractères, dont
+    // le texte est en bonne part de la formule de clôture
+    const trouve = pagesCouvertes(
+      fatwa,
+      [
+        { ref: 431, numero: 431, texte: fatwa },
+        { ref: 432, numero: 432, texte: 'صفحة sans rapport ' + 'ز'.repeat(400) },
+        { ref: 433, numero: 433, texte: 'autre صفحة ' + 'ح'.repeat(400) },
+        { ref: 434, numero: 434, texte: fatwa.slice(0, 120) + 'ط'.repeat(200) },
+      ],
+      431,
+    );
+    expect(trouve).toEqual([431]);
   });
 });

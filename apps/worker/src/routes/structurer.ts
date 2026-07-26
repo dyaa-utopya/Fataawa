@@ -367,18 +367,19 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             const couvertes = pagesCouvertes(
               fatwa.texteComplet,
               [
-                { ref: pageSource, texte },
+                { ref: pageSource, texte, numero: page.numero },
                 ...suivantesSnap.docs
                   .map((d) => {
                     const p = d.data() as PageDoc;
                     return {
                       ref: { numero: p.numero, pageId: d.id, gcsPath: p.gcsPath },
                       texte: (p.texteOcr ?? '').trim(),
+                      numero: p.numero,
                     };
                   })
                   .filter((c) => c.texte !== ''),
               ],
-              pageSource,
+              page.numero,
             );
             // la première fatwa complète porte en plus les pages du fragment recousu
             const pages =
