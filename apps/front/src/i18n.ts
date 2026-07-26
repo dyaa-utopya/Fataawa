@@ -22,6 +22,8 @@ export interface Dict {
   signIn: string;
   signInHint: string;
   signInFailed: string;
+  /** Pourquoi un résultat de recherche est remonté. */
+  origine: { numero: string; mots: string; sens: string; 'mots+sens': string };
   signOut: string;
   notAllowed: string;
   sessionExpired: string;
@@ -119,6 +121,7 @@ export const DICT: Record<Lang, Dict> = {
     signIn: 'Se connecter avec Google',
     signInHint: 'Accès réservé. Connectez-vous avec le compte autorisé.',
     signInFailed: 'Connexion refusée. Code renvoyé par Google :',
+    origine: { numero: 'numéro exact', mots: 'mots', sens: 'sens', 'mots+sens': 'mots + sens' },
     signOut: 'Déconnexion',
     notAllowed: 'Ce compte n’est pas autorisé à accéder à Fataawa.',
     sessionExpired: 'Session expirée, reconnectez-vous.',
@@ -220,6 +223,7 @@ export const DICT: Record<Lang, Dict> = {
     signIn: 'Sign in with Google',
     signInHint: 'Restricted access. Sign in with the authorised account.',
     signInFailed: 'Sign-in refused. Code returned by Google:',
+    origine: { numero: 'exact number', mots: 'keywords', sens: 'meaning', 'mots+sens': 'keywords + meaning' },
     signOut: 'Sign out',
     notAllowed: 'This account is not allowed to access Fataawa.',
     sessionExpired: 'Session expired, please sign in again.',
@@ -319,6 +323,7 @@ export const DICT: Record<Lang, Dict> = {
     signIn: 'تسجيل الدخول بحساب Google',
     signInHint: 'الدخول مقيّد. سجّل الدخول بالحساب المصرّح له.',
     signInFailed: 'تعذّر تسجيل الدخول. الرمز الذي أرجعته Google:',
+    origine: { numero: 'رقم مطابق', mots: 'كلمات', sens: 'معنى', 'mots+sens': 'كلمات ومعنى' },
     signOut: 'تسجيل الخروج',
     notAllowed: 'هذا الحساب غير مصرّح له بالدخول إلى فتاوى.',
     sessionExpired: 'انتهت الجلسة، أعد تسجيل الدخول.',

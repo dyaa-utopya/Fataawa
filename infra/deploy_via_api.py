@@ -329,22 +329,32 @@ def step_indexes() -> None:
                 ],
             },
         ),
-        # index vectoriel du RAG sur la collection historique `fatawas_db`.
-        # Champ embedding_v2 : le champ `embedding` d'origine vient d'un modèle
-        # retiré de l'API Gemini, ses vecteurs sont inexploitables ici.
-        (
-            "fatawas_db",
-            {
-                "queryScope": "COLLECTION",
-                "fields": [
-                    {
-                        "fieldPath": "embedding_v2",
-                        "vectorConfig": {"dimension": 768, "flat": {}},
-                    }
-                ],
-            },
+        # Index vectoriels du RAG, sur les DEUX collections de fatwas. Champ
+        # embedding_v2 : le champ `embedding` d'origine vient d'un modèle retiré
+        # de l'API Gemini, ses vecteurs sont inexploitables ici.
+        #
+        # Les deux, et pas seulement celle en service : l'index de fatawas_v2
+        # avait dû être créé à la main lors de la bascule, si bien qu'un
+        # déploiement à neuf aurait rendu la recherche muette. Une collection
+        # absente ne coûte rien — l'index se construit à la première écriture.
+        *(
+            (
+                col,
+                {
+                    "queryScope": "COLLECTION",
+                    "fields": [
+                        {
+                            "fieldPath": "embedding_v2",
+                            "vectorConfig": {"dimension": 768, "flat": {}},
+                        }
+                    ],
+                },
+            )
+            for col in dict.fromkeys([FATWAS_LECTURE, FATWAS_ECRITURE, "fatawas_db"])
         ),
-        # (pas d'index composite pour `statut` : l'index simple automatique suffit)
+        # (ni index composite pour `statut`, ni pour `mots` : la recherche par
+        #  mots-clés n'utilise qu'un `array-contains`, que l'index simple
+        #  automatique de Firestore sert déjà)
     ]:
         try:
             req("POST", f"{base}/{cg}/indexes", body)
@@ -703,6 +713,24 @@ def step_repair_pages(images: dict[str, str]) -> None:
     )
 
 
+def step_index_mots(images: dict[str, str]) -> None:
+    """Remplit le champ `mots` des fatwas déjà en base, pour la recherche par mots-clés."""
+    _run_job(
+        "fataawa-index-mots",
+        images,
+        "apps/worker/dist/jobs/index-mots.js",
+        {
+            "GOOGLE_CLOUD_PROJECT": PROJECT,
+            "GCS_BUCKET": BUCKET,
+            "FATWAS_COLLECTION": FATWAS_ECRITURE,
+            # simulation par défaut : on regarde ce qui changerait avant d'écrire
+            "APPLIQUER": os.environ.get("APPLIQUER", ""),
+            "FORCER": os.environ.get("FORCER", ""),
+        },
+        "indexation lexicale",
+    )
+
+
 def step_import_scans(images: dict[str, str]) -> None:
     """Copie les scans historiques Drive → bucket et raccorde les fatwas."""
     drive_root = os.environ.get("DRIVE_SCANS_FOLDER_ID") or os.environ.get("DRIVE_ROOT_FOLDER_ID", "")
@@ -924,6 +952,7 @@ def main() -> None:
         "import_scans",
         "replay",
         "repair_pages",
+        "index_mots",
     }:
         tag = os.environ.get("IMAGE_TAG", "")
         if not tag and step != "scheduler":
@@ -944,6 +973,8 @@ def main() -> None:
             step_replay(images)
         elif step == "repair_pages":
             step_repair_pages(images)
+        elif step == "index_mots":
+            step_index_mots(images)
         else:
             worker = req(
                 "GET",

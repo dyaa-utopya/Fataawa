@@ -1,3 +1,4 @@
+import { jetonsTexte } from './lexique.js';
 import type { PageSourceRef } from './types.js';
 
 /**
@@ -70,6 +71,13 @@ export interface FatwaStored {
   pages?: PageSourceRef[];
   statut?: 'STRUCTUREE' | 'EN_LIGNE';
   source?: string;
+  /**
+   * Mots de la fatwa, normalisés, pour la recherche par mots-clés — Firestore
+   * n'ayant pas de plein texte, c'est ce tableau que `array-contains`
+   * interroge. Alimenté par le pipeline et, sur les fatwas déjà en base, par le
+   * job `index-mots`.
+   */
+  mots?: string[];
 }
 
 /** Vue normalisée d'une fatwa, utilisée par l'API et le pipeline. */
@@ -156,7 +164,28 @@ export function fromPipeline(f: FatwaPipelineWrite): FatwaStored {
     image_source: f.imageSource ?? '',
     statut: 'STRUCTUREE',
     source: 'pipeline',
+    // les thèmes entrent dans l'index lexical au même titre que le texte : le
+    // lecteur qui tape « زكاة » doit atteindre une fatwa rangée sous ce thème
+    // même si le mot ne figure pas dans son corps
+    mots: motsIndexables(f.themeN1, f.themeN2, f.themeN3, f.numero, f.texte),
   };
+}
+
+/**
+ * Mots indexables d'une fatwa, thèmes et numéro compris.
+ *
+ * Le numéro y entre en clair pour que « 2677 » le trouve même si le texte
+ * l'imprime en chiffres arabes : la normalisation ramène les deux graphies à la
+ * même forme.
+ */
+export function motsIndexables(
+  themeN1: string,
+  themeN2: string,
+  themeN3: string,
+  numero: string,
+  texte: string,
+): string[] {
+  return jetonsTexte([themeN1, themeN2, themeN3, numero, texte].filter((s) => s !== '').join(' '));
 }
 
 /**

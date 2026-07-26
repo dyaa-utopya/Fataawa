@@ -24,6 +24,8 @@ export interface ResultatRecherche extends ScanRef {
   texte: string;
   question: string;
   reponse: string;
+  /** Ce qui a fait remonter ce résultat : numéro exact, mots, sens, ou les deux. */
+  origine: 'numero' | 'mots' | 'sens' | 'mots+sens';
 }
 
 export interface AskAnswerResponse {

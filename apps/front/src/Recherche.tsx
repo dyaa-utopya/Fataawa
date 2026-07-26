@@ -42,6 +42,9 @@ function CarteResultat({
             {r.sous_sujet !== '' && ` · ${r.sous_sujet}`}
           </span>
         )}
+        {/* Deux chemins mènent ici, le mot exact et le sens : sans le dire, une
+            liste qui mêle les deux paraît capricieuse. */}
+        <span className="ms-auto shrink-0 text-stone-400">{t.origine[r.origine]}</span>
       </div>
 
       {deploye ? (
