@@ -34,11 +34,12 @@ REGION = os.environ.get("REGION", "us-central1")
 BUCKET = os.environ.get("BUCKET", f"{PROJECT}-fataawa-scans")
 TOKEN = os.environ.get("ACCESS_TOKEN", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
-# Le vocaliseur est un produit distinct, donc un modèle distinct — c'était la
-# raison de le séparer. Mesuré sur 1 964 mots du corpus : gemini-3.1-flash-lite
-# (celui du pipeline) altère 27 mots, gemini-3.6-flash 15, pour la même
-# proportion vocalisée. Le monter ici ne touche ni à l'OCR ni au découpage.
-VOCALISATION_MODEL = os.environ.get("VOCALISATION_MODEL", "gemini-3.6-flash")
+# Le vocaliseur est un produit distinct, donc un modèle distinct, réglable sans
+# toucher ni à l'OCR ni au découpage. Mesuré sur 1 964 mots, trois passages par
+# modèle : les plages de mots altérés se chevauchent (3.6-flash 13-24,
+# 3.5-flash-lite 20-28, 3.1-flash-lite 27) et la fidélité après recollage est
+# totale dans tous les cas. Un modèle « lite » suffit donc, et coûte bien moins.
+VOCALISATION_MODEL = os.environ.get("VOCALISATION_MODEL", "gemini-3.5-flash-lite")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "gemini-embedding-001")
 # Collections de fatwas, en un seul endroit. Le retraitement des recueils écrit
 # dans une collection neuve pendant que l'API continue de servir l'ancienne ;

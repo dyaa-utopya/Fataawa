@@ -148,12 +148,20 @@ const apiConfigSchema = z.object({
   /** Préfixe de dépôt des nouveaux scans (identique au worker). */
   GCS_INBOX_PREFIX: z.string().default('inbox/'),
   /**
-   * Modèle du vocaliseur — produit distinct, donc réglage distinct. Mesuré sur
-   * 1 964 mots du corpus : gemini-3.1-flash-lite (celui du pipeline) altère
-   * 27 mots, gemini-3.6-flash en altère 15, pour la même proportion vocalisée.
-   * Le pouvoir monter sans toucher au découpage était la raison de le séparer.
+   * Modèle du vocaliseur — produit distinct, donc réglage distinct, réglable
+   * sans toucher au découpage ni à l'OCR.
+   *
+   * Mesuré sur 1 964 mots du corpus, trois passages par modèle : gemini-3.6-flash
+   * laisse 13 à 24 mots nus, gemini-3.5-flash-lite 20 à 28, gemini-3.1-flash-lite
+   * 27. Les plages se chevauchent — la variance d'un passage à l'autre est du
+   * même ordre que l'écart entre modèles, à température 0. Aucun des trois ne
+   * ressort donc vraiment, et surtout : après recollage la fidélité est totale
+   * dans les trois cas, l'écart ne portant que sur ~1 % de mots laissés nus.
+   *
+   * D'où le choix d'un modèle « lite », bien moins cher : c'est le recollage qui
+   * protège le texte, pas la puissance du modèle.
    */
-  VOCALISATION_MODEL: z.string().min(1).default('gemini-3.6-flash'),
+  VOCALISATION_MODEL: z.string().min(1).default('gemini-3.5-flash-lite'),
   VOCALISATION_RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(6),
   /** Nécessaires au déclenchement de l'ingestion depuis l'espace d'ajout. */
   REGION: z.string().min(1).default('us-central1'),
