@@ -92,3 +92,21 @@ describe('estPageSommaire', () => {
     expect(estPageSommaire('عنوان ١٢\nعنوان ١٣')).toBe(false);
   });
 });
+
+describe('estPageSommaire — OCR emballé', () => {
+  // 54 pages sur 4 870 sont ressorties de l'OCR à ~131 000 caractères : une
+  // répétition sans fin de points de conduite, rendue d'une seule traite.
+  // Le comptage par lignes n'y voyait rien, d'où le signal global.
+  const emballee = `هل يحضر النبي ﷺ المولد؟ ${' .'.repeat(2000)}`;
+
+  it('reconnaît une page saturée de points, même sur une seule ligne', () => {
+    expect(estPageSommaire(emballee)).toBe(true);
+  });
+
+  it('ne se déclenche pas sur la ponctuation ordinaire d’une fatwa', () => {
+    const fatwa =
+      'س: ما حكم صلاة الجماعة؟ ج: صلاة الجماعة واجبة على الرجال القادرين. ' +
+      'وقد ثبت عن النبي ﷺ أنه قال: «من سمع النداء فلم يأت فلا صلاة له». وبالله التوفيق.';
+    expect(estPageSommaire(fatwa)).toBe(false);
+  });
+});

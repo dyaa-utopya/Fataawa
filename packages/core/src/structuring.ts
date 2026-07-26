@@ -291,9 +291,23 @@ Ta réponse précédente était invalide (${derniereErreur}). Réponds STRICTEME
  * les pages de fatwas, elles, tombent à 0 %.
  */
 const LIGNE_SOMMAIRE = /(\.{4,}|…{2,}|[.·]\s*[.·]\s*[.·])|[٠-٩0-9]{1,4}\s*$/u;
+/**
+ * Deuxième signal, global celui-là : les points de conduite saturent la page.
+ * Il est indispensable parce que sur ces pages l'OCR s'emballe et rend tout
+ * d'une traite — une seule ligne de 131 000 caractères, où le comptage par
+ * lignes ne voit rien. Sur les dix recueils, une page de fatwas ne dépasse pas
+ * 3 % de points ; ces pages-là sont à 49 %.
+ */
+const PROPORTION_POINTS = 0.15;
 
 export function estPageSommaire(texte: string): boolean {
-  const lignes = texte
+  const t = texte.trim();
+  if (t === '') return false;
+  let points = 0;
+  for (const c of t) if (c === '.' || c === '·' || c === '…') points++;
+  if (points / t.length >= PROPORTION_POINTS) return true;
+
+  const lignes = t
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l !== '');

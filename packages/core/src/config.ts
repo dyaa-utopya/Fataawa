@@ -32,6 +32,13 @@ const workerConfigSchema = z.object({
    * fournies en contexte pour voir la fin des fatwas qui débordent.
    */
   STRUCT_WINDOW_PAGES: z.coerce.number().int().min(1).max(6).default(3),
+  /**
+   * Au-delà, le texte n'est plus celui d'une page : l'OCR s'est emballé. Mesuré
+   * sur les dix recueils, une page tient entre 1 000 et 4 000 caractères, et
+   * 54 pages de sommaire sur 4 870 sont ressorties à 131 000 — une répétition
+   * sans fin de points de conduite, qui fait échouer la structuration.
+   */
+  STRUCT_MAX_PAGE_CHARS: z.coerce.number().int().min(4000).default(20000),
   /** Rendu des PDF : PNG sans perte, résolution suffisante pour l'OCR arabe. */
   PDF_DPI: z.coerce.number().int().min(100).max(600).default(300),
   PDF_PAGES_PAR_LOT: z.coerce.number().int().min(5).max(200).default(50),
@@ -60,6 +67,7 @@ export interface WorkerConfig {
   structMaxAttempts: number;
   structPagesPerRun: number;
   structWindowPages: number;
+  structMaxPageChars: number;
   pdfDpi: number;
   pdfPagesParLot: number;
   ingestBatch: number;
@@ -89,6 +97,7 @@ export function parseWorkerConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     structMaxAttempts: raw.STRUCT_MAX_ATTEMPTS,
     structPagesPerRun: raw.STRUCT_PAGES_PER_RUN,
     structWindowPages: raw.STRUCT_WINDOW_PAGES,
+    structMaxPageChars: raw.STRUCT_MAX_PAGE_CHARS,
     pdfDpi: raw.PDF_DPI,
     pdfPagesParLot: raw.PDF_PAGES_PAR_LOT,
     ingestBatch: raw.INGEST_BATCH,

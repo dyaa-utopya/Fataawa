@@ -133,12 +133,27 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           }
 
           const texte = (page.texteOcr ?? '').trim();
-          // Page vide ou page de sommaire : rien à en tirer. Le sommaire est
-          // écarté ici, avant l'appel au modèle — c'est déterministe et cela
-          // épargne une vingtaine d'appels par recueil.
+          // Page vide, page de sommaire, ou OCR emballé : rien à en tirer. Le
+          // sommaire est écarté ici, avant l'appel au modèle — c'est
+          // déterministe et cela épargne une vingtaine d'appels par recueil.
+          // Le garde-fou de longueur, lui, vise les pages dont l'OCR part en
+          // boucle : envoyer 131 000 caractères au modèle tronque sa réponse,
+          // épuise les tentatives et met la page en quarantaine, ce qui arrête
+          // le livre entier sur une page de sommaire.
           const sommaire = estPageSommaire(texte);
-          if (texte === '' || texte === '[PAGE_VIDE]' || sommaire) {
-            if (sommaire) log.info({ pageId: pageDoc.id }, 'page de sommaire ignorée');
+          const emballe = texte.length > cfg.structMaxPageChars;
+          if (emballe) {
+            log.warn(
+              { pageId: pageDoc.id, caracteres: texte.length, plafond: cfg.structMaxPageChars },
+              'page ignorée : OCR emballé, le texte ne peut pas être celui d’une page',
+            );
+            await pageDoc.ref.update({
+              derniereErreur: `OCR emballé : ${texte.length} caractères`,
+              majAt: FieldValue.serverTimestamp(),
+            });
+          }
+          if (texte === '' || texte === '[PAGE_VIDE]' || sommaire || emballe) {
+            if (sommaire && !emballe) log.info({ pageId: pageDoc.id }, 'page de sommaire ignorée');
             await livreRef(livreId).update({
               curseurStructuration: page.numero,
               majAt: FieldValue.serverTimestamp(),
