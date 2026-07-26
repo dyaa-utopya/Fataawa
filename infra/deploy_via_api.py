@@ -579,6 +579,10 @@ def step_deploy_api(images: dict[str, str]) -> str:
                             # le rapport d'administration peut aussi analyser la
                             # collection où le retraitement écrit
                             "FATWAS_COLLECTION_PIPELINE": FATWAS_ECRITURE,
+                            # App Check : « observation » tant qu'on n'a pas vu
+                            # arriver de vraies attestations, « application »
+                            # ensuite (APP_CHECK_ENFORCE=1)
+                            "APP_CHECK_ENFORCE": os.environ.get("APP_CHECK_ENFORCE", ""),
                             "REGION": REGION,
                             "WORKER_URL": worker_url,
                             "TASKS_SA_EMAIL": SA_WORKER,
@@ -595,6 +599,8 @@ def step_deploy_api(images: dict[str, str]) -> str:
         req("POST", f"{base}:setIamPolicy", {"policy": pol})
     log(f"api : {url}")
     log(f"api : lit les fatwas dans « {FATWAS_LECTURE} »")
+    mode = "application" if os.environ.get("APP_CHECK_ENFORCE", "") in ("1", "true") else "observation"
+    log(f"api : App Check en mode {mode}")
     return url
 
 

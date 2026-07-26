@@ -9,7 +9,7 @@ import {
 } from '@fataawa/core';
 import { adminRouter } from './admin.js';
 import { VectorIndexError, handleAsk } from './ask.js';
-import { parseAuthConfig } from './auth.js';
+import { parseAppCheckConfig, parseAuthConfig, requireAppCheck } from './auth.js';
 import { TokenBucketLimiter } from './ratelimit.js';
 import { rechercher } from './search.js';
 import { asyncHandler } from './util.js';
@@ -24,6 +24,8 @@ const cfg = apiConfig();
 // La consultation est publique ; seul l'espace d'ajout de fatwas exige un
 // compte autorisé (allowlist vérifiée côté serveur à chaque requête).
 const auth = parseAuthConfig(process.env);
+const appCheck = parseAppCheckConfig(process.env);
+const attestation = requireAppCheck(appCheck);
 if (auth.allowedEmails.size === 0) {
   logger.warn('ALLOWED_EMAILS vide : l’espace d’ajout de fatwas est fermé à tous');
 }
@@ -62,6 +64,7 @@ const v1 = Router();
 v1.post(
   '/ask',
   limiterAsk,
+  attestation,
   asyncHandler(async (req, res) => {
     const result = await handleAsk(cfg, req.body);
     res.status(200).json(result);
@@ -72,6 +75,7 @@ v1.post(
 v1.get(
   '/images/:livreId/:pageId',
   limiterMw,
+  attestation,
   asyncHandler(async (req, res) => {
     const { livreId, pageId } = req.params as { livreId: string; pageId: string };
     const snap = await pageRef(livreId, pageId).get();
@@ -96,6 +100,7 @@ app.get('/', (_req, res) => {
 v1.post(
   '/search',
   limiterMw,
+  attestation,
   asyncHandler(async (req, res) => {
     res.status(200).json(await rechercher(cfg, req.body));
   }),
@@ -122,5 +127,8 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 
 const port = Number(process.env.PORT ?? 8080);
 app.listen(port, () => {
-  logger.info({ port, modele: cfg.geminiModel, topK: cfg.topK }, 'fataawa-api démarré');
+  logger.info(
+    { port, modele: cfg.geminiModel, topK: cfg.topK, appCheck: appCheck.enforce ? 'application' : 'observation' },
+    'fataawa-api démarré',
+  );
 });

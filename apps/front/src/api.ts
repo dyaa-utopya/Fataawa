@@ -1,4 +1,5 @@
 import { jeton } from './auth.js';
+import { jetonAppCheck } from './firebase.js';
 import type {
   AskResponse,
   FichierPret,
@@ -15,14 +16,29 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * En-têtes d'un appel public : App Check atteste que la requête vient de ce
+ * site. Le jeton est joint quand il est disponible, jamais exigé côté client —
+ * c'est le serveur qui tranche.
+ */
+async function entetesPubliques(): Promise<Record<string, string>> {
+  const attestation = await jetonAppCheck();
+  return {
+    'content-type': 'application/json',
+    ...(attestation === null ? {} : { 'X-Firebase-AppCheck': attestation }),
+  };
+}
+
 /** Appel authentifié (espace d'ajout de fatwas). */
 async function appelAdmin<T>(chemin: string, body?: unknown): Promise<T> {
   const token = await jeton();
   if (token === null) throw new ApiError(401);
+  const attestation = await jetonAppCheck();
   const res = await fetch(`/api/v1/admin${chemin}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
       authorization: `Bearer ${token}`,
+      ...(attestation === null ? {} : { 'X-Firebase-AppCheck': attestation }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -81,10 +97,11 @@ export async function ask(
   langue: string,
   questionConfirmee = false,
 ): Promise<AskResponse> {
-  // la consultation est publique : pas de jeton requis ici
+  // la consultation est publique : aucune connexion requise, seule l'attestation
+  // App Check accompagne l'appel
   const res = await fetch('/api/v1/ask', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await entetesPubliques(),
     body: JSON.stringify({
       question,
       ...(conversationId ? { conversationId } : {}),
@@ -103,7 +120,7 @@ export async function ask(
 export async function rechercher(requete: string, limite = 15): Promise<ResultatRecherche[]> {
   const res = await fetch('/api/v1/search', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: await entetesPubliques(),
     body: JSON.stringify({ requete, limite }),
   });
   if (!res.ok) throw new ApiError(res.status);
