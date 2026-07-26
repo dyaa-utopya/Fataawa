@@ -119,6 +119,11 @@ Règles strictes :
 1. N'extrais QUE les fatwas qui commencent dans la PAGE COURANTE, ou qui prolongent le
    FRAGMENT EN ATTENTE. Une fatwa qui commence dans une page de contexte ne doit PAS
    être extraite : elle le sera à son tour. C'est ce qui évite les doublons.
+   ATTENTION — une page en porte presque toujours PLUSIEURS. Qu'elle débute au milieu
+   d'une phrase, en pleine réponse d'une fatwa précédente, ne change rien : PARCOURS-LA
+   JUSQU'AU BOUT. Chaque « الفتوى رقم » et chaque « س: » rencontré plus bas ouvre une
+   fatwa qui commence bien ici et doit figurer dans fatwas_completes. Ne rends une liste
+   vide que si la page ne contient, d'un bout à l'autre, aucun début de fatwa.
 2. Une fatwa peut se poursuivre dans les pages de contexte : dans ce cas recopie son
    texte ENTIER (page courante + suite) et place-la dans fatwas_completes. Ne coupe
    jamais une fatwa au bord d'une page.
