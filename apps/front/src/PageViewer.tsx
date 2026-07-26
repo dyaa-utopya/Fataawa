@@ -9,11 +9,14 @@ import type { ScanRef } from './types.js';
  * sur la page suivante. Montrer une seule page laissait le lecteur devant une
  * réponse coupée en bas de feuille, alors que le texte, lui, était complet.
  *
- * Les pages de la fatwa sont proposées d'emblée ; au-delà, on peut continuer à
- * avancer ou reculer dans le livre, ce qui sert aussi simplement à lire le
- * contexte. Le scan est servi par l'API à partir du livre et du numéro de page,
- * qui renvoie vers une URL signée.
+ * La navigation est BORNÉE aux pages de la fatwa, plus une page de part et
+ * d'autre : de quoi lire la suite d'une réponse qui déborde, ou le contexte
+ * immédiat, sans transformer la visionneuse en liseuse du recueil entier. Le
+ * scan est servi par l'API à partir du livre et du numéro de page, qui renvoie
+ * vers une URL signée.
  */
+/** Pages offertes au-delà de celles que la fatwa occupe, de chaque côté. */
+const MARGE = 1;
 export default function PageViewer({
   source,
   t,
@@ -24,9 +27,15 @@ export default function PageViewer({
   onClose: () => void;
 }) {
   const pages = source.pages ?? [];
-  const premiere = pages[0] ?? source.numero_page ?? null;
+  const connues = pages.length > 0 ? pages : source.numero_page ? [source.numero_page] : [];
+  const premiere = connues.length > 0 ? Math.min(...connues) : null;
+  const borneMin = premiere === null ? null : Math.max(1, premiere - MARGE);
+  const borneMax = connues.length > 0 ? Math.max(...connues) + MARGE : null;
   const [page, setPage] = useState<number | null>(premiere);
-  const feuilletable = source.livre_id !== '' && page !== null;
+  const feuilletable =
+    source.livre_id !== '' && page !== null && borneMin !== null && borneMax !== null;
+  const reculPossible = feuilletable && page > (borneMin ?? page);
+  const avancePossible = feuilletable && page < (borneMax ?? page);
 
   // l'URL directe ne vaut que pour la première page ; dès qu'on feuillette,
   // c'est l'API qui résout le scan à partir du numéro
@@ -41,15 +50,14 @@ export default function PageViewer({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (!feuilletable) return;
       // en lecture arabe, la page suivante est à gauche : on suit les flèches
       // telles qu'elles sont, sans inverser, pour rester prévisible
-      if (e.key === 'ArrowRight') setPage((p) => (p === null ? p : p + 1));
-      if (e.key === 'ArrowLeft') setPage((p) => (p === null || p <= 1 ? p : p - 1));
+      if (e.key === 'ArrowRight' && avancePossible) setPage((p) => (p === null ? p : p + 1));
+      if (e.key === 'ArrowLeft' && reculPossible) setPage((p) => (p === null ? p : p - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, feuilletable]);
+  }, [onClose, avancePossible, reculPossible]);
 
   const bouton =
     'rounded-md bg-white/15 px-2.5 py-1.5 text-xs text-white hover:bg-white/25 disabled:opacity-30';
@@ -73,19 +81,22 @@ export default function PageViewer({
           {feuilletable && (
             <>
               <button
-                onClick={() => setPage((p) => (p === null || p <= 1 ? p : p - 1))}
-                disabled={page !== null && page <= 1}
+                onClick={() => reculPossible && setPage((p) => (p === null ? p : p - 1))}
+                disabled={!reculPossible}
                 className={bouton}
                 title={t.previousPage}
               >
                 ‹
               </button>
+              {/* une page hors de la fatwa est signalée comme telle : le
+                  lecteur doit savoir qu'il en est sorti */}
               <span className="text-xs text-stone-300">
-                {pages.length > 1 && pages.includes(page) ? `${t.fatwaPages} ` : ''}
-                {page}
+                {t.fatwaPages} {page}
+                {!connues.includes(page) && ` · ${t.aroundPage}`}
               </span>
               <button
-                onClick={() => setPage((p) => (p === null ? p : p + 1))}
+                onClick={() => avancePossible && setPage((p) => (p === null ? p : p + 1))}
+                disabled={!avancePossible}
                 className={bouton}
                 title={t.nextPage}
               >
@@ -116,9 +127,9 @@ export default function PageViewer({
           <p className="text-sm text-stone-300">{t.noImage}</p>
         )}
       </div>
-      {feuilletable && pages.length > 1 && (
+      {feuilletable && connues.length > 1 && (
         <p className="pt-2 text-center text-xs text-stone-400">
-          {t.spansPages} {pages.join(' · ')}
+          {t.spansPages} {connues.join(' · ')}
         </p>
       )}
     </div>

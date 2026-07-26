@@ -685,6 +685,24 @@ def step_replay(images: dict[str, str]) -> None:
     )
 
 
+def step_repair_pages(images: dict[str, str]) -> None:
+    """Recalcule le champ `pages` des fatwas déjà en base, sans appeler le modèle."""
+    _run_job(
+        "fataawa-repair-pages",
+        images,
+        "apps/worker/dist/jobs/repair-pages.js",
+        {
+            "GOOGLE_CLOUD_PROJECT": PROJECT,
+            "GCS_BUCKET": BUCKET,
+            "FATWAS_COLLECTION": FATWAS_ECRITURE,
+            "FENETRE": os.environ.get("FENETRE", "4"),
+            # simulation par défaut : on regarde ce qui changerait avant d'écrire
+            "APPLIQUER": os.environ.get("APPLIQUER", ""),
+        },
+        "rattrapage des pages",
+    )
+
+
 def step_import_scans(images: dict[str, str]) -> None:
     """Copie les scans historiques Drive → bucket et raccorde les fatwas."""
     drive_root = os.environ.get("DRIVE_SCANS_FOLDER_ID") or os.environ.get("DRIVE_ROOT_FOLDER_ID", "")
@@ -857,6 +875,7 @@ def main() -> None:
         "reembed",
         "import_scans",
         "replay",
+        "repair_pages",
     }:
         tag = os.environ.get("IMAGE_TAG", "")
         if not tag and step != "scheduler":
@@ -875,6 +894,8 @@ def main() -> None:
             step_import_scans(images)
         elif step == "replay":
             step_replay(images)
+        elif step == "repair_pages":
+            step_repair_pages(images)
         else:
             worker = req(
                 "GET",

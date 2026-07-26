@@ -91,6 +91,7 @@ export interface Dict {
   nextPage: string;
   fatwaPages: string;
   spansPages: string;
+  aroundPage: string;
 }
 
 export const DICT: Record<Lang, Dict> = {
@@ -192,6 +193,7 @@ export const DICT: Record<Lang, Dict> = {
     nextPage: 'Page suivante',
     fatwaPages: 'page',
     spansPages: 'Cette fatwa occupe les pages',
+    aroundPage: 'page voisine',
   },
   en: {
     appTitle: 'Fataawa',
@@ -290,6 +292,7 @@ export const DICT: Record<Lang, Dict> = {
     nextPage: 'Next page',
     fatwaPages: 'page',
     spansPages: 'This fatwa spans pages',
+    aroundPage: 'neighbouring page',
   },
   ar: {
     appTitle: 'فتاوى',
@@ -384,5 +387,6 @@ export const DICT: Record<Lang, Dict> = {
     nextPage: 'الصفحة التالية',
     fatwaPages: 'صفحة',
     spansPages: 'تمتد هذه الفتوى على الصفحات',
+    aroundPage: 'صفحة مجاورة',
   },
 };
