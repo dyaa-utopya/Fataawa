@@ -33,6 +33,8 @@ export const LIMITE_VOCALISATION = 4000;
  * tatweel, qui n'est qu'un allongement graphique.
  */
 const MARQUES = /[\p{Mn}ـ]/gu;
+/** Même classe, sans le drapeau global : `test` sur une regex /g garde un curseur. */
+const MARQUES_TEST = /\p{Mn}/u;
 /** Un mot inclut ses marques : sans cela, une voyelle couperait le mot en deux. */
 const SEPARATEURS = /([^\p{L}\p{N}\p{M}]+)/u;
 
@@ -108,7 +110,23 @@ export interface Recollage {
   vocalises: number;
   /** Mots rendus nus parce que le modèle les avait altérés ou perdus. */
   refuses: number;
+  /**
+   * Positions, dans `texte`, des mots restés sans aucun signe — bornes de
+   * caractères, pas indices de mots.
+   *
+   * Calculé ici, où l'on tient à la fois le texte et le résultat de
+   * l'alignement, et rendu en bornes de caractères pour que l'affichage n'ait
+   * qu'à découper : refaire le découpage en mots à l'écran serait une seconde
+   * déduction, qui pourrait ne pas s'accorder avec le compte annoncé.
+   *
+   * Chiffres et mots latins en sont exclus : ils n'ont aucun signe à recevoir,
+   * et les signaler noierait ce qu'il faut voir.
+   */
+  nus: Array<[debut: number, fin: number]>;
 }
+
+/** Lettres arabes, hors chiffres (٠-٩) et hors signes, plages voisines. */
+const LETTRE_ARABE = /[ء-يٱ-ۓ]/u;
 
 /**
  * Recolle la sortie du modèle sur l'entrée, mot par mot.
@@ -140,7 +158,19 @@ export function recollerFidele(entree: string, sortie: string): Recollage {
     if (propose !== squelettesEntree[rang]) vocalises++;
   });
 
-  return { texte: u.join(''), vocalises, refuses };
+  // Bornes des mots restés nus, relevées sur le texte définitif. Un seul
+  // parcours, après assemblage : les positions sont donc exactes par
+  // construction, y compris pour les mots que le modèle a laissés intacts.
+  const nus: Array<[number, number]> = [];
+  let position = 0;
+  for (const unite of u) {
+    if (unite === undefined) continue;
+    const debut = position;
+    position += unite.length;
+    if (LETTRE_ARABE.test(unite) && !MARQUES_TEST.test(unite)) nus.push([debut, position]);
+  }
+
+  return { texte: u.join(''), vocalises, refuses, nus };
 }
 
 /** Taille maximale d'une page téléversée. Trois pages scannées tiennent

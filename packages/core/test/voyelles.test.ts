@@ -75,6 +75,29 @@ describe('recollerFidele', () => {
     }
   });
 
+  it('situe exactement les mots restés nus', () => {
+    // « لله » a été altéré par le modèle, l'original nu est rétabli : c'est ce
+    // mot-là, et lui seul, que l'écran doit surligner
+    const r = recollerFidele('الحمد لله', 'الْحَمْدُ لِلرَّحْمَٰنِ');
+    expect(r.nus).toHaveLength(1);
+    const [debut, fin] = r.nus[0] ?? [0, 0];
+    expect(r.texte.slice(debut, fin)).toBe('لله');
+  });
+
+  it('ne signale ni les chiffres ni le texte latin', () => {
+    // ils n'ont aucun signe à recevoir ; les surligner noierait ce qu'il faut voir
+    const r = recollerFidele('الفتوى ٢٦٧٧ page', 'الْفَتْوَى ٢٦٧٧ page');
+    expect(r.nus).toEqual([]);
+  });
+
+  it('signale un mot que le modèle a laissé intact, pas seulement les refusés', () => {
+    const r = recollerFidele('الحمد لله', 'الْحَمْدُ لله');
+    expect(r.refuses).toBe(0);
+    expect(r.nus).toHaveLength(1);
+    const [debut, fin] = r.nus[0] ?? [0, 0];
+    expect(r.texte.slice(debut, fin)).toBe('لله');
+  });
+
   it('tient le décalage : un mot en trop au début ne fait pas tout refuser', () => {
     // c'est ce qu'un appariement par position produirait — tout décalé, tout
     // refusé. L'alignement par sous-suite commune l'évite.

@@ -27,8 +27,13 @@ export interface ReponseVocalisation {
   texte: string;
   /** Mots auxquels des signes ont été ajoutés. */
   vocalises: number;
-  /** Mots rendus nus faute d'une restitution fidèle du modèle. */
-  refuses: number;
+  /**
+   * Positions des mots restés sans signes, en bornes de caractères.
+   *
+   * C'est la MÊME liste qui sert à annoncer le compte et à surligner : un compte
+   * calculé d'un côté et un surlignage de l'autre finiraient par se contredire.
+   */
+  nus: Array<[number, number]>;
   mots: number;
 }
 
@@ -116,7 +121,7 @@ export async function vocaliser(cfg: ApiConfig, body: unknown): Promise<ReponseV
     // Ne devrait pas arriver : le recollage le garantit par construction. Si
     // cela se produit, on rend le texte d'origine plutôt qu'un texte altéré.
     logger.error({ mots: compterMots(texte) }, 'vocalisation : squelette non préservé, texte rendu nu');
-    return { texte, vocalises: 0, refuses: compterMots(texte), mots: compterMots(texte) };
+    return { texte, vocalises: 0, nus: [], mots: compterMots(texte) };
   }
 
   const mots = compterMots(texte);
@@ -125,10 +130,11 @@ export async function vocaliser(cfg: ApiConfig, body: unknown): Promise<ReponseV
       mots,
       vocalises: recolle.vocalises,
       refuses: recolle.refuses,
+      nus: recolle.nus.length,
       bruteFidele: squelette(brut) === squelette(texte),
       modele: cfg.vocalisationModel,
     },
     'vocalisation rendue',
   );
-  return { texte: recolle.texte, vocalises: recolle.vocalises, refuses: recolle.refuses, mots };
+  return { texte: recolle.texte, vocalises: recolle.vocalises, nus: recolle.nus, mots };
 }

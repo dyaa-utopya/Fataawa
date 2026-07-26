@@ -146,16 +146,22 @@ export async function lirePage(fichier: File): Promise<string> {
  * Vocalisation — service distinct : aucune conversation, aucun corpus. Le texte
  * n'est pas conservé côté serveur.
  */
-export async function vocaliser(
-  texte: string,
-): Promise<{ texte: string; vocalises: number; refuses: number; mots: number }> {
+export interface Vocalisation {
+  texte: string;
+  vocalises: number;
+  /** Bornes des mots restés sans signes, relevées par le serveur. */
+  nus: Array<[number, number]>;
+  mots: number;
+}
+
+export async function vocaliser(texte: string): Promise<Vocalisation> {
   const res = await fetch('/api/v1/voyelles', {
     method: 'POST',
     headers: await entetesPubliques(),
     body: JSON.stringify({ texte }),
   });
   if (!res.ok) throw new ApiError(res.status);
-  return (await res.json()) as { texte: string; vocalises: number; refuses: number; mots: number };
+  return (await res.json()) as Vocalisation;
 }
 
 export async function rechercher(requete: string, limite = 15): Promise<ResultatRecherche[]> {

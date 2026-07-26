@@ -8,8 +8,28 @@ type T = (typeof DICT)['fr'];
 interface Resultat {
   texte: string;
   vocalises: number;
-  refuses: number;
+  /** Bornes des mots restés sans signes, telles que le serveur les a relevées. */
+  nus: Array<[number, number]>;
   mots: number;
+}
+
+/**
+ * Découpe le texte pour l'affichage, en isolant les mots restés sans signes.
+ *
+ * Les bornes viennent du SERVEUR, qui les a relevées sur le texte qu'il a
+ * assemblé. Les recalculer ici serait une seconde déduction, et le surlignage
+ * finirait par ne plus s'accorder avec le compte annoncé.
+ */
+function tronconner(texte: string, nus: ReadonlyArray<[number, number]>) {
+  const morceaux: Array<{ texte: string; nu: boolean }> = [];
+  let curseur = 0;
+  for (const [debut, fin] of nus) {
+    if (debut > curseur) morceaux.push({ texte: texte.slice(curseur, debut), nu: false });
+    morceaux.push({ texte: texte.slice(debut, fin), nu: true });
+    curseur = fin;
+  }
+  if (curseur < texte.length) morceaux.push({ texte: texte.slice(curseur), nu: false });
+  return morceaux;
 }
 
 /**
@@ -154,11 +174,11 @@ export default function Voyelles({ t }: { t: T }) {
           </div>
 
           {/* La fidélité est le cœur du service : on la déclare, dans les deux
-              sens. Un mot refusé reparaît nu — mieux vaut une voyelle manquante
-              qu'un mot inventé. */}
-          {resultat.refuses > 0 ? (
+              sens. Un mot laissé nu reparaît sans signes — mieux vaut une
+              voyelle manquante qu'un mot inventé. */}
+          {resultat.nus.length > 0 ? (
             <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {resultat.refuses} {t.vowelsRefused}
+              {resultat.nus.length} {t.vowelsRefused}
             </p>
           ) : (
             <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -167,7 +187,17 @@ export default function Voyelles({ t }: { t: T }) {
           )}
 
           <p dir="rtl" className="texte-arabe whitespace-pre-wrap leading-loose text-stone-800">
-            {resultat.texte}
+            {tronconner(resultat.texte, resultat.nus).map((m, i) =>
+              m.nu ? (
+                // surligné, non coloré : le mot reste noir et lisible, c'est le
+                // fond qui le désigne
+                <mark key={i} className="rounded bg-amber-200 px-0.5 text-stone-900">
+                  {m.texte}
+                </mark>
+              ) : (
+                <span key={i}>{m.texte}</span>
+              ),
+            )}
           </p>
         </div>
       )}
