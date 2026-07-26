@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import {
   type ApiConfig,
   CHAMP_EMBEDDING_ACTUEL,
+  COL_FATWAS,
   type FatwaStored,
   FieldValue,
   type GeminiContent,
   conversationRef,
   db,
+  cheminScanLegacy,
   estArtefactSansFatwa,
   fatwasCol,
   gcsExists,
@@ -92,7 +94,7 @@ async function urlImage(cfg: ApiConfig, fatwa: SourceFatwa): Promise<string | nu
       return await gcsSignedReadUrl(cfg.gcsBucket, chemin, cfg.signedUrlTtlMinutes);
     }
     if (fatwa.imageSource !== '') {
-      const legacy = `${cfg.legacyImagePrefix}${fatwa.imageSource}`;
+      const legacy = cheminScanLegacy(cfg.legacyImagePrefix, fatwa.imageSource);
       if (await gcsExists(cfg.gcsBucket, legacy)) {
         return await gcsSignedReadUrl(cfg.gcsBucket, legacy, cfg.signedUrlTtlMinutes);
       }
@@ -227,7 +229,7 @@ export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResul
   } catch (err) {
     if ((err as { code?: number }).code === 9) {
       throw new VectorIndexError(
-        `index vectoriel sur fatawas_db.${CHAMP_EMBEDDING_ACTUEL} absent ou en construction`,
+        `index vectoriel sur ${COL_FATWAS}.${CHAMP_EMBEDDING_ACTUEL} absent ou en construction`,
       );
     }
     throw err;

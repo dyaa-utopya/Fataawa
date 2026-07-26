@@ -158,3 +158,18 @@ export function fromPipeline(f: FatwaPipelineWrite): FatwaStored {
     source: 'pipeline',
   };
 }
+
+/**
+ * Chemin du scan historique à partir du seul nom de fichier.
+ *
+ * Deux pièges. Le bucket range les pages par livre (`legacy/{livre}/{nom}`)
+ * alors que les fatwas de l'ancienne collection ne connaissent que le nom du
+ * fichier. Et ce nom y est enregistré en forme Unicode DÉCOMPOSÉE (ا suivi
+ * d'un hamza séparé) là où les objets du bucket portent la forme composée :
+ * sans normalisation, aucun rapprochement n'aboutit.
+ */
+export function cheminScanLegacy(prefixe: string, imageSource: string): string {
+  const nom = imageSource.normalize('NFC');
+  const base = /^(.*)_Page\d+\.(?:png|jpe?g)$/i.exec(nom)?.[1] ?? '';
+  return base === '' ? `${prefixe}${nom}` : `${prefixe}${base}/${nom}`;
+}

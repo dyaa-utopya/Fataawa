@@ -3,6 +3,7 @@ import {
   type ApiConfig,
   CHAMP_EMBEDDING_ACTUEL,
   type FatwaStored,
+  cheminScanLegacy,
   estArtefactSansFatwa,
   fatwasCol,
   gcsExists,
@@ -81,7 +82,7 @@ export async function rechercher(
       if (chemin !== '') {
         url = await gcsSignedReadUrl(cfg.gcsBucket, chemin, cfg.signedUrlTtlMinutes);
       } else if (f.imageSource !== '') {
-        const legacy = `${cfg.legacyImagePrefix}${f.imageSource}`;
+        const legacy = cheminScanLegacy(cfg.legacyImagePrefix, f.imageSource);
         if (await gcsExists(cfg.gcsBucket, legacy)) {
           url = await gcsSignedReadUrl(cfg.gcsBucket, legacy, cfg.signedUrlTtlMinutes);
         }

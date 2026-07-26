@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHAMP_EMBEDDING_ACTUEL,
   CHAMP_EMBEDDING_LEGACY,
+  cheminScanLegacy,
   estArtefactSansFatwa,
   fromPipeline,
   texteAEmbedder,
@@ -130,5 +131,26 @@ describe('estArtefactSansFatwa', () => {
 
   it('conserve un texte long même sans repère : c’est une suite de fatwa', () => {
     expect(estArtefactSansFatwa('و'.repeat(200))).toBe(false);
+  });
+});
+
+describe('cheminScanLegacy', () => {
+  it('range le scan sous le dossier de son livre', () => {
+    expect(cheminScanLegacy('legacy/', 'Recueil_2_Page445.png')).toBe(
+      'legacy/Recueil_2/Recueil_2_Page445.png',
+    );
+  });
+
+  it('normalise le nom : l’ancienne collection l’écrit en forme décomposée', () => {
+    // ا + hamza séparé (U+0627 U+0654) d'un côté, أ (U+0623) de l'autre :
+    // sans NFC, le nom ne correspond à aucun objet du bucket
+    const decompose = 'الأفتاء_1_Page55.png'.normalize('NFD');
+    expect(cheminScanLegacy('legacy/', decompose)).toBe(
+      'legacy/الأفتاء_1/الأفتاء_1_Page55.png'.normalize('NFC'),
+    );
+  });
+
+  it('sans numéro de page reconnaissable, laisse le nom à la racine', () => {
+    expect(cheminScanLegacy('legacy/', 'scan.png')).toBe('legacy/scan.png');
   });
 });
