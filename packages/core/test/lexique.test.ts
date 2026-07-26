@@ -47,6 +47,34 @@ describe('jetonsTexte', () => {
     expect(jetons).toContain('سفر');
   });
 
+  it('écarte le décor imprimé sur presque chaque fatwa', () => {
+    // en-tête, formule de clôture et bloc de signature : présents dans 71 à
+    // 74 % des 3 981 fatwas, ils ne distinguent rien. C'est le même décor qui
+    // avait faussé la mesure de l'étendue des fatwas.
+    const cloture = 'وبالله التوفيق وصلى الله على نبينا محمد وآله وصحبه وسلم';
+    const signature = 'اللجنة الدائمة للبحوث العلمية والإفتاء الرئيس عبدالعزيز بن باز';
+    const jetons = jetonsTexte(`الفتوى رقم (٢٦٧٧) ${cloture} ${signature}`);
+    // du décor entier il ne doit rester que le numéro
+    expect(jetons).toEqual(['2677']);
+    // le corpus écrit aussi les noms détachés (10 % contre 31 %) : « عبد » et
+    // « بن » tombent alors, mais « العزيز » reste — il n'atteint pas 20 % en
+    // jetons, et c'est par ailleurs un nom divin qu'on peut vouloir chercher
+    const detachee = jetonsTexte('عبد العزيز بن باز');
+    expect(detachee).not.toContain('عبد');
+    expect(detachee).not.toContain('بن');
+    expect(detachee).not.toContain('باز');
+    expect(detachee).toContain('عزيز');
+  });
+
+  it('garde les mots de contenu, même très fréquents', () => {
+    // « الصلاة » figure dans 43 % du corpus — plus que « اللجنة » (44 %) ou
+    // « رئيس » (43 %). Un seuil de fréquence aurait supprimé le mot le plus
+    // utile du recueil : le tri se fait par nature, pas par comptage.
+    for (const mot of ['الصلاة', 'حكم', 'يجوز', 'العقيدة', 'النبي', 'رسول']) {
+      expect(jetonsTexte(mot).length).toBeGreaterThan(0);
+    }
+  });
+
   it('dédoublonne et respecte le plafond', () => {
     const texte = Array.from({ length: 50 }, (_, i) => `كلمه${i}`).join(' ');
     expect(jetonsTexte(texte, 10)).toHaveLength(10);

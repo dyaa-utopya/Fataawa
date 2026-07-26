@@ -14,10 +14,27 @@
  * purement sémantique : une question posée librement ne rencontre presque
  * jamais les mots du livre, et y ajouter la correspondance lexicale
  * n'apporterait que du bruit.
+ *
+ * Limite connue, assumée : les préfixes arabes (و، ب، ل، ك) ne sont pas
+ * détachés, si bien que « البحوث », « للبحوث » et « والبحوث » restent trois
+ * jetons distincts. Les séparer sans analyseur morphologique casse plus de mots
+ * qu'il n'en rapproche — « ولد » n'est pas « و + لد ». C'est le chemin
+ * sémantique qui absorbe ces variantes.
  */
 
-/** Mots trop répandus pour distinguer une fatwa d'une autre. */
+/**
+ * Mots qui ne distinguent aucune fatwa d'une autre — toutes formes déjà
+ * normalisées, puisque c'est sous cette forme qu'elles sont comparées.
+ *
+ * Le tri s'est fait par NATURE, la fréquence ne servant que de preuve. Mesuré
+ * sur les 3 981 fatwas du corpus, « الصلاة » apparaît dans 43 % d'entre elles —
+ * plus que « اللجنة » (44 %) ou « رئيس » (43 %). Un simple seuil de fréquence
+ * aurait donc supprimé le mot le plus utile du recueil. On n'écarte que ce qui
+ * est structurel ou relève de la signature ; aucun mot de contenu, quelle que
+ * soit sa fréquence.
+ */
 const MOTS_VIDES = new Set([
+  // particules et pronoms
   'من',
   'في',
   'الي',
@@ -32,9 +49,12 @@ const MOTS_VIDES = new Set([
   'الذين',
   'ما',
   'لا',
+  'ولا',
+  'الا',
   'ان',
   'انه',
   'او',
+  'ام',
   'ثم',
   'قد',
   'كان',
@@ -58,7 +78,61 @@ const MOTS_VIDES = new Set([
   'وهو',
   'اذا',
   'وقد',
+  'عليه',
+  'فيه',
+  'فيها',
+  'لان',
   'الله',
+  'تعالي',
+  // en-tête imprimé sur presque chaque fatwa : « الفتوى رقم » / « السؤال »
+  // (74 %, 74 %, 57 %)
+  'فتوي',
+  'الفتوي',
+  'رقم',
+  'سوال',
+  'السوال',
+  'جواب',
+  'الجواب',
+  // formule de clôture « وبالله التوفيق وصلى الله على نبينا محمد وآله وصحبه
+  // وسلم » (71 à 74 %). C'est le même décor qui avait faussé la mesure de
+  // l'étendue des fatwas : présent partout, il ne dit rien de nulle part.
+  'وبالله',
+  'توفيق',
+  'التوفيق',
+  'وصلي',
+  'نبينا',
+  'محمد',
+  'واله',
+  'وصحبه',
+  'وسلم',
+  // bloc de signature du comité (37 à 51 %)
+  'لجنه',
+  'اللجنه',
+  'دايمه',
+  'الدايمه',
+  'بحوث',
+  'للبحوث',
+  'البحوث',
+  'علميه',
+  'العلميه',
+  'افتاء',
+  'الافتاء',
+  'والافتاء',
+  'رييس',
+  'الرييس',
+  'نايب',
+  'عضو',
+  // noms des signataires, présents sur presque toutes les fatwas : les
+  // chercher rendrait le corpus entier (24 à 51 %)
+  'بن',
+  'باز',
+  'عفيفي',
+  'غديان',
+  'قعود',
+  'عبد',
+  'عبدالله',
+  'عبدالعزيز',
+  'عبدالرزاق',
 ]);
 
 /**
