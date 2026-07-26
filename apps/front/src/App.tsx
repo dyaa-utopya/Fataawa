@@ -9,6 +9,17 @@ import PageViewer from './PageViewer.js';
 import Recherche from './Recherche.js';
 import type { AskSource, ScanRef, ChatMessage } from './types.js';
 
+/**
+ * Une conversation ne survit pas à trois minutes sans activité, et ne dépasse
+ * pas dix messages. Deux raisons : personne ne revient sur un fil abandonné, et
+ * plus l'historique s'allonge, plus le modèle traîne le contexte des questions
+ * précédentes dans des réponses qui n'ont plus rien à voir.
+ */
+const INACTIVITE_MS = 3 * 60_000;
+const MESSAGES_MAX = 10;
+/** Une question, pas un texte à commenter. Le serveur applique la même borne. */
+const LONGUEUR_MAX = 500;
+
 const LANGS: Array<{ code: Lang; label: string }> = [
   { code: 'fr', label: 'FR' },
   { code: 'en', label: 'EN' },
@@ -64,6 +75,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageOuverte, setPageOuverte] = useState<ScanRef | null>(null);
+  /** Affiché une fois, quand la conversation vient d'être effacée d'elle-même. */
+  const [effacee, setEffacee] = useState<'inactivite' | 'plein' | null>(null);
   const [utilisateur, setUtilisateur] = useState<User | null>(null);
   // deux usages distincts qui cohabitent : poser une question, ou fouiller
   // directement le corpus. L'administration, elle, vit sur une adresse à part
@@ -91,15 +104,38 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
 
+  // Effacement après inactivité : le minuteur repart à chaque message, donc une
+  // conversation suivie n'est jamais coupée — seul un fil laissé de côté part.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const t = window.setTimeout(() => {
+      setMessages([]);
+      setConversationId(null);
+      localStorage.removeItem('fataawa.conversation');
+      setEffacee('inactivite');
+    }, INACTIVITE_MS);
+    return () => window.clearTimeout(t);
+  }, [messages]);
+
   async function send(question: string, confirmee = false) {
-    const clean = question.trim();
+    const clean = question.trim().slice(0, LONGUEUR_MAX);
     if (clean === '' || loading) return;
     setError(null);
+    setEffacee(null);
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', texte: clean }]);
+    // Dix messages atteints : on repart d'une conversation neuve plutôt que de
+    // tronquer l'historique en silence, ce qui donnerait des réponses qui
+    // s'appuient sur un contexte à moitié perdu.
+    const plein = messages.length >= MESSAGES_MAX;
+    const fil = plein ? null : conversationId;
+    if (plein) {
+      localStorage.removeItem('fataawa.conversation');
+      setEffacee('plein');
+    }
+    setMessages((prev) => (plein ? [{ role: 'user', texte: clean }] : [...prev, { role: 'user', texte: clean }]));
     setLoading(true);
     try {
-      const res = await ask(clean, conversationId, lang, confirmee);
+      const res = await ask(clean, fil, lang, confirmee);
       setConversationId(res.conversationId);
       localStorage.setItem('fataawa.conversation', res.conversationId);
       if (res.type === 'clarification') {
@@ -227,6 +263,12 @@ export default function App() {
           </div>
         )}
 
+        {effacee !== null && (
+          <p className="mb-4 rounded-md border border-stone-200 bg-white px-3 py-2 text-center text-xs text-stone-500">
+            {effacee === 'inactivite' ? t.clearedIdle : t.clearedFull}
+          </p>
+        )}
+
         <div className="space-y-4">
           {messages.map((m, i) =>
             m.role === 'user' ? (
@@ -342,13 +384,21 @@ export default function App() {
             void send(input);
           }}
         >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={t.inputPlaceholder}
-            dir="auto"
-            className="flex-1 rounded-full border border-stone-300 bg-stone-50 px-4 py-2.5 outline-none focus:border-emerald-500 focus:bg-white"
-          />
+          <div className="relative flex-1">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value.slice(0, LONGUEUR_MAX))}
+              maxLength={LONGUEUR_MAX}
+              placeholder={t.inputPlaceholder}
+              dir="auto"
+              className="w-full rounded-full border border-stone-300 bg-stone-50 px-4 py-2.5 pe-16 outline-none focus:border-emerald-500 focus:bg-white"
+            />
+            {input.length > LONGUEUR_MAX - 100 && (
+              <span className="pointer-events-none absolute inset-y-0 end-4 flex items-center text-xs text-stone-400">
+                {LONGUEUR_MAX - input.length}
+              </span>
+            )}
+          </div>
           <button
             type="submit"
             disabled={loading || input.trim() === ''}

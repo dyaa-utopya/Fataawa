@@ -24,7 +24,9 @@ ${s.texte.slice(0, MAX_CHARS_PAR_BLOC)}
 }
 
 export const askRequestSchema = z.object({
-  question: z.string().trim().min(2).max(2000),
+  // 500 caractères : une question, pas un texte à commenter. Le front applique
+  // la même borne, celle-ci la garantit quel que soit le client.
+  question: z.string().trim().min(2).max(500),
   conversationId: z
     .string()
     .regex(/^[A-Za-z0-9_-]{8,128}$/)

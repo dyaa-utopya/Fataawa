@@ -85,6 +85,8 @@ export interface Dict {
   reportNoQuestion: string;
   reportNoAnswer: string;
   reportSamples: string;
+  clearedIdle: string;
+  clearedFull: string;
 }
 
 export const DICT: Record<Lang, Dict> = {
@@ -180,6 +182,8 @@ export const DICT: Record<Lang, Dict> = {
     reportNoQuestion: 'sans question',
     reportNoAnswer: 'sans réponse',
     reportSamples: 'Exemples',
+    clearedIdle: 'Conversation effacée après 3 minutes sans activité.',
+    clearedFull: 'Nouvelle conversation : la précédente atteignait 10 messages.',
   },
   en: {
     appTitle: 'Fataawa',
@@ -272,6 +276,8 @@ export const DICT: Record<Lang, Dict> = {
     reportNoQuestion: 'no question',
     reportNoAnswer: 'no answer',
     reportSamples: 'Samples',
+    clearedIdle: 'Conversation cleared after 3 minutes of inactivity.',
+    clearedFull: 'New conversation: the previous one reached 10 messages.',
   },
   ar: {
     appTitle: 'فتاوى',
@@ -360,5 +366,7 @@ export const DICT: Record<Lang, Dict> = {
     reportNoQuestion: 'بلا سؤال',
     reportNoAnswer: 'بلا جواب',
     reportSamples: 'أمثلة',
+    clearedIdle: 'حُذفت المحادثة بعد ثلاث دقائق من الخمول.',
+    clearedFull: 'محادثة جديدة: بلغت السابقة عشر رسائل.',
   },
 };

@@ -32,20 +32,36 @@ const app = express();
 app.set('trust proxy', true);
 app.use(express.json({ limit: '64kb' }));
 
-const limiter = new TokenBucketLimiter(cfg.rateLimitRpm);
-const limiterMw: express.RequestHandler = (req, res, next) => {
-  if (!limiter.allow(req.ip ?? 'inconnu')) {
-    res.status(429).json({ erreur: 'trop de requêtes, réessayez dans une minute' });
-    return;
-  }
-  next();
-};
+/**
+ * Deux limiteurs, parce que les deux usages ne coûtent pas la même chose : une
+ * question déclenche un triage, une génération et un embedding, une recherche
+ * un seul embedding. Les mesurer ensemble laisserait la recherche payer pour le
+ * chat, ou l'inverse.
+ *
+ * La clé est l'IP, faute de compte : cela arrête un script emballé et l'abus
+ * ordinaire, pas quelqu'un qui change d'adresse. Le vrai plafond de dépense
+ * reste max-instances côté Cloud Run et le quota Gemini.
+ */
+function parIp(limiter: TokenBucketLimiter): express.RequestHandler {
+  return (req, res, next) => {
+    if (!limiter.allow(req.ip ?? 'inconnu')) {
+      res.setHeader('Retry-After', '60');
+      res.status(429).json({ erreur: 'trop de requêtes, réessayez dans une minute' });
+      return;
+    }
+    next();
+  };
+}
+// rafale à la moitié du débit : une salve de questions simultanées passe, un
+// martèlement continu non
+const limiterAsk = parIp(new TokenBucketLimiter(cfg.askRateLimitRpm, Math.ceil(cfg.askRateLimitRpm / 2)));
+const limiterMw = parIp(new TokenBucketLimiter(cfg.rateLimitRpm));
 
 const v1 = Router();
 
 v1.post(
   '/ask',
-  limiterMw,
+  limiterAsk,
   asyncHandler(async (req, res) => {
     const result = await handleAsk(cfg, req.body);
     res.status(200).json(result);

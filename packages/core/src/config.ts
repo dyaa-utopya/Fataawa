@@ -123,9 +123,26 @@ const apiConfigSchema = z.object({
   EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-001'),
   EMBEDDING_DIM: z.coerce.number().int().min(64).max(2048).default(768),
   TOP_K: z.coerce.number().int().min(1).max(20).default(6),
-  HISTORY_TURNS: z.coerce.number().int().min(0).max(20).default(6),
+  /**
+   * Tours d'historique envoyés au modèle. Cinq tours = dix messages, ce qui est
+   * exactement la mémoire que le front laisse vivre : au-delà il repart sur une
+   * conversation neuve, et le serveur ne doit pas en garder plus que lui.
+   */
+  HISTORY_TURNS: z.coerce.number().int().min(0).max(20).default(5),
   SIGNED_URL_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
-  RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(20),
+  /** Débit par IP sur la recherche : un seul appel au modèle, donc large. */
+  RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(30),
+  /**
+   * Débit par IP sur les questions. Trois fois plus coûteux qu'une recherche
+   * (triage + génération + embedding), d'où une limite propre et plus basse.
+   */
+  ASK_RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(12),
+  /**
+   * Durée de conservation d'une conversation en base. Le front l'efface au bout
+   * de trois minutes d'inactivité ; ce délai-ci ne sert qu'à ne pas garder
+   * indéfiniment des questions dont personne n'a plus besoin.
+   */
+  CONVERSATION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(24),
   /** Où chercher les scans des fatwas historiques (champ image_source). */
   LEGACY_IMAGE_PREFIX: z.string().default('legacy/'),
   /** Préfixe de dépôt des nouveaux scans (identique au worker). */
@@ -148,6 +165,8 @@ export interface ApiConfig {
   historyTurns: number;
   signedUrlTtlMinutes: number;
   rateLimitRpm: number;
+  askRateLimitRpm: number;
+  conversationTtlHours: number;
   legacyImagePrefix: string;
   gcsInboxPrefix: string;
   region: string;
@@ -169,6 +188,8 @@ export function parseApiConfig(env: NodeJS.ProcessEnv): ApiConfig {
     historyTurns: raw.HISTORY_TURNS,
     signedUrlTtlMinutes: raw.SIGNED_URL_TTL_MINUTES,
     rateLimitRpm: raw.RATE_LIMIT_RPM,
+    askRateLimitRpm: raw.ASK_RATE_LIMIT_RPM,
+    conversationTtlHours: raw.CONVERSATION_TTL_HOURS,
     legacyImagePrefix: raw.LEGACY_IMAGE_PREFIX,
     gcsInboxPrefix: raw.GCS_INBOX_PREFIX,
     region: raw.REGION,

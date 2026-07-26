@@ -5,6 +5,7 @@ import {
   COL_FATWAS,
   type FatwaStored,
   FieldValue,
+  Timestamp,
   type GeminiContent,
   conversationRef,
   db,
@@ -105,7 +106,17 @@ async function urlImage(cfg: ApiConfig, fatwa: SourceFatwa): Promise<string | nu
   return null;
 }
 
+/**
+ * Enregistre le tour de conversation, avec sa date d'expiration.
+ *
+ * Le front efface la conversation au bout de trois minutes d'inactivité ; côté
+ * base, ces documents ne servent plus à personne dès cet instant. Le champ
+ * `expireAt` est adossé à une règle TTL Firestore, qui les supprime d'elle-même :
+ * sans quoi les questions posées par le public s'accumuleraient indéfiniment,
+ * sans utilité et sans motif de les conserver.
+ */
 async function persistExchange(
+  cfg: ApiConfig,
   conversationId: string,
   langue: AskRequest['langue'],
   userTexte: string,
@@ -113,11 +124,13 @@ async function persistExchange(
   isNew: boolean,
 ): Promise<void> {
   const now = Date.now();
+  const expireAt = Timestamp.fromMillis(now + cfg.conversationTtlHours * 3_600_000);
   const batch = db().batch();
   batch.set(
     conversationRef(conversationId),
     {
       langue,
+      expireAt,
       majAt: FieldValue.serverTimestamp(),
       ...(isNew ? { creeAt: FieldValue.serverTimestamp() } : {}),
     },
@@ -127,12 +140,14 @@ async function persistExchange(
     role: 'user',
     texte: userTexte,
     ordre: now,
+    expireAt,
     at: FieldValue.serverTimestamp(),
   });
   batch.set(messagesCol(conversationId).doc(), {
     role: 'assistant',
     texte: assistantTexte,
     ordre: now + 1,
+    expireAt,
     at: FieldValue.serverTimestamp(),
   });
   await batch.commit();
@@ -183,6 +198,7 @@ export async function handleAsk(cfg: ApiConfig, body: unknown): Promise<AskResul
       if (triage.statut === 'AMBIGUE') {
         const message = triage.message_clarification || CLARIFICATION_PAR_DEFAUT[req.langue];
         await persistExchange(
+          cfg,
           conversationId,
           req.langue,
           req.question,
@@ -287,6 +303,7 @@ QUESTION (langue de réponse : ${req.langue}) : ${questionRecherche}`,
   );
 
   await persistExchange(
+    cfg,
     conversationId,
     req.langue,
     req.question,
