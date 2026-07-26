@@ -64,6 +64,10 @@ export interface Dict {
   vowelsPlaceholder: string;
   vowelsChars: string;
   vowelsTooLong: string;
+  vowelsUploadHint: string;
+  vowelsReading: string;
+  vowelsBadType: string;
+  vowelsNoText: string;
   vowelsStart: string;
   vowelsWorking: string;
   vowelsDone: string;
@@ -180,6 +184,10 @@ export const DICT: Record<Lang, Dict> = {
     vowelsPlaceholder: 'Collez ici le texte arabe à vocaliser…',
     vowelsChars: 'caractères',
     vowelsTooLong: 'Texte trop long : retirez une partie.',
+    vowelsUploadHint: 'Photo ou PDF, 3 pages au plus. Le texte lu s’affiche ci-dessous, corrigez-le si besoin avant de vocaliser.',
+    vowelsReading: 'Lecture de la page',
+    vowelsBadType: 'Format non accepté : image (PNG, JPEG, WEBP, TIFF) ou PDF.',
+    vowelsNoText: 'Aucun texte arabe lisible sur cette page.',
     vowelsStart: 'Vocaliser',
     vowelsWorking: 'Vocalisation en cours…',
     vowelsDone: 'mots vocalisés',
@@ -296,6 +304,10 @@ export const DICT: Record<Lang, Dict> = {
     vowelsPlaceholder: 'Paste the Arabic text to vowelise here…',
     vowelsChars: 'characters',
     vowelsTooLong: 'Text too long: remove some of it.',
+    vowelsUploadHint: 'Photo or PDF, 3 pages at most. The text read appears below — correct it if needed before adding vowels.',
+    vowelsReading: 'Reading page',
+    vowelsBadType: 'Unsupported format: image (PNG, JPEG, WEBP, TIFF) or PDF.',
+    vowelsNoText: 'No readable Arabic text on this page.',
     vowelsStart: 'Add vowels',
     vowelsWorking: 'Working…',
     vowelsDone: 'words vowelled',
@@ -408,6 +420,10 @@ export const DICT: Record<Lang, Dict> = {
     vowelsPlaceholder: 'الصق هنا النصّ العربي المطلوب تشكيله…',
     vowelsChars: 'حرفًا',
     vowelsTooLong: 'النصّ أطول من اللازم، احذف منه شيئًا.',
+    vowelsUploadHint: 'صورة أو PDF، ثلاث صفحات على الأكثر. يظهر النصّ المقروء أدناه، فصحّحه إن لزم قبل التشكيل.',
+    vowelsReading: 'قراءة الصفحة',
+    vowelsBadType: 'صيغة غير مقبولة: صورة (PNG، JPEG، WEBP، TIFF) أو PDF.',
+    vowelsNoText: 'لا يوجد نصّ عربي مقروء في هذه الصفحة.',
     vowelsStart: 'شكّل النصّ',
     vowelsWorking: 'جارٍ التشكيل…',
     vowelsDone: 'كلمة مشكولة',

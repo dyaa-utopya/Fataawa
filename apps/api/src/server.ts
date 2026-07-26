@@ -1,7 +1,9 @@
 import express, { Router } from 'express';
 import { ZodError } from 'zod';
 import {
+  LIMITE_OCTETS_PAGE,
   type PageDoc,
+  TYPES_PAGE,
   apiConfig,
   gcsSignedReadUrl,
   logger,
@@ -12,7 +14,7 @@ import { VectorIndexError, handleAsk } from './ask.js';
 import { parseAppCheckConfig, parseAuthConfig, requireAppCheck } from './auth.js';
 import { TokenBucketLimiter } from './ratelimit.js';
 import { rechercher } from './search.js';
-import { vocaliser } from './voyelles.js';
+import { PageRefusee, lirePage, vocaliser } from './voyelles.js';
 import { asyncHandler } from './util.js';
 
 /**
@@ -104,7 +106,13 @@ app.get('/healthz', (_req, res) => {
 app.get('/', (_req, res) => {
   res.status(200).json({
     service: 'fataawa-api',
-    routes: ['/v1/ask', '/v1/search', '/v1/voyelles', '/v1/images/:livreId/:pageId'],
+    routes: [
+      '/v1/ask',
+      '/v1/search',
+      '/v1/voyelles',
+      '/v1/voyelles/page',
+      '/v1/images/:livreId/:pageId',
+    ],
   });
 });
 
@@ -127,6 +135,31 @@ v1.post(
   attestation,
   asyncHandler(async (req, res) => {
     res.status(200).json(await vocaliser(cfg, req.body));
+  }),
+);
+
+// Lecture d'une page téléversée, en amont de la vocalisation. Corps brut plutôt
+// que JSON : encoder une image en base64 dans du JSON gonfle le transfert d'un
+// tiers pour rien. Le fichier n'est jamais écrit — il traverse la mémoire.
+v1.post(
+  '/voyelles/page',
+  limiterVoyelles,
+  attestation,
+  express.raw({ type: [...TYPES_PAGE], limit: LIMITE_OCTETS_PAGE }),
+  asyncHandler(async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ erreur: 'aucun fichier reçu' });
+      return;
+    }
+    try {
+      res.status(200).json(await lirePage(cfg, req.body, req.get('content-type') ?? ''));
+    } catch (err) {
+      if (err instanceof PageRefusee) {
+        res.status(err.statut).json({ erreur: err.motif });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 

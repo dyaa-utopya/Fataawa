@@ -2,6 +2,8 @@ import { z } from 'zod';
 import {
   type ApiConfig,
   LIMITE_VOCALISATION,
+  OCR_VOCALISATION_PROMPT,
+  TYPES_PAGE,
   VOCALISATION_SYSTEM,
   geminiGenerateText,
   logger,
@@ -33,6 +35,63 @@ export interface ReponseVocalisation {
 /** Compte les mots comme le recollage les compte, marques comprises. */
 function compterMots(texte: string): number {
   return texte.split(/[^\p{L}\p{N}\p{M}]+/u).filter((m) => m !== '').length;
+}
+
+/** Page refusée : type inconnu, ou plus de texte que le vocaliseur n'en prend. */
+export class PageRefusee extends Error {
+  constructor(
+    readonly statut: number,
+    readonly motif: 'type' | 'trop_long' | 'vide',
+  ) {
+    super(motif);
+  }
+}
+
+/**
+ * Lit une page téléversée et rend son texte, sans voyelles.
+ *
+ * Étape séparée de la vocalisation, et c'est délibéré : l'OCR se trompe parfois,
+ * et le texte extrait revient dans le champ de saisie où il peut être corrigé
+ * avant d'être vocalisé. Vocaliser directement enfermerait l'erreur.
+ *
+ * Le fichier n'est jamais écrit : il traverse la mémoire, part au modèle, et
+ * disparaît avec la requête.
+ */
+export async function lirePage(
+  cfg: ApiConfig,
+  octets: Buffer,
+  typeMime: string,
+): Promise<{ texte: string }> {
+  const type = typeMime.split(';')[0]?.trim() ?? '';
+  if (!TYPES_PAGE.has(type)) throw new PageRefusee(415, 'type');
+
+  const brut = await geminiGenerateText(
+    {
+      model: cfg.vocalisationModel,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: type, data: octets.toString('base64') } },
+            { text: OCR_VOCALISATION_PROMPT },
+          ],
+        },
+      ],
+    },
+    { apiKey: cfg.geminiApiKey },
+  );
+
+  const texte = brut.trim();
+  if (texte === '') throw new PageRefusee(422, 'vide');
+  // Le nombre de pages d'un PDF ne se compte pas sans outil ; la borne qui
+  // compte est de toute façon celle du vocaliseur, exprimée en caractères.
+  if (texte.length > LIMITE_VOCALISATION) throw new PageRefusee(413, 'trop_long');
+
+  logger.info(
+    { type, octets: octets.length, caracteres: texte.length, modele: cfg.vocalisationModel },
+    'page lue pour vocalisation',
+  );
+  return { texte };
 }
 
 export async function vocaliser(cfg: ApiConfig, body: unknown): Promise<ReponseVocalisation> {

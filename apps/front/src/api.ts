@@ -122,6 +122,27 @@ export async function ask(
  * Publique elle aussi, et indépendante de la conversation en cours.
  */
 /**
+ * Lecture d'une page téléversée : rend son texte, sans voyelles, pour qu'il
+ * puisse être relu et corrigé avant vocalisation. Le fichier part tel quel —
+ * l'encoder en base64 dans du JSON gonflerait le transfert d'un tiers.
+ */
+export async function lirePage(fichier: File): Promise<string> {
+  const { jeton: attestation, echec } = await jetonAppCheck();
+  const res = await fetch('/api/v1/voyelles/page', {
+    method: 'POST',
+    headers: {
+      'content-type': fichier.type,
+      ...(attestation === null
+        ? { 'X-AppCheck-Diag': echec || 'inconnu' }
+        : { 'X-Firebase-AppCheck': attestation }),
+    },
+    body: fichier,
+  });
+  if (!res.ok) throw new ApiError(res.status);
+  return ((await res.json()) as { texte: string }).texte;
+}
+
+/**
  * Vocalisation — service distinct : aucune conversation, aucun corpus. Le texte
  * n'est pas conservé côté serveur.
  */

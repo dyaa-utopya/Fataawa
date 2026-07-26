@@ -143,6 +143,38 @@ export function recollerFidele(entree: string, sortie: string): Recollage {
   return { texte: u.join(''), vocalises, refuses };
 }
 
+/** Taille maximale d'une page téléversée. Trois pages scannées tiennent
+ *  largement dessous ; au-delà, c'est un livre, et l'appel coûterait cher. */
+export const LIMITE_OCTETS_PAGE = 8 * 1024 * 1024;
+
+/** Types acceptés au téléversement. Le modèle lit le PDF sans conversion. */
+export const TYPES_PAGE = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/tiff',
+  'application/pdf',
+]);
+
+/**
+ * OCR du vocaliseur — prompt PROPRE À CE PRODUIT.
+ *
+ * Distinct de celui du pipeline, qui se présente comme « spécialisé dans les
+ * textes islamiques arabes » : ici on ne sait pas ce qu'on lit, et l'annoncer
+ * orienterait la lecture. On demande une transcription nue, sans les signes de
+ * vocalisation même s'ils figurent sur la page — c'est l'étape suivante qui les
+ * pose, et les garder ferait comparer des squelettes déjà voyellés.
+ */
+export const OCR_VOCALISATION_PROMPT = `Transcris tout le texte arabe visible sur cette page, tel qu'il est écrit.
+
+RÈGLES :
+1. Rends le texte seul. Aucune introduction, aucun commentaire, aucune balise.
+2. Respecte les retours à la ligne et les paragraphes de la page.
+3. N'ajoute aucun signe de vocalisation (تشكيل). Si la page en porte, transcris les lettres sans eux.
+4. Ne corrige rien, ne complète rien, ne résume rien : ce qui est écrit, rien d'autre.
+5. Ignore les numéros de page, les en-têtes et les pieds de page courants.
+6. Si la page ne contient aucun texte arabe lisible, ne rends rien.`;
+
 /**
  * Consigne du vocaliseur. Prompt propre à ce produit : il ne mentionne aucune
  * fatwa, aucun corpus, et ne doit jamais être fondu avec ceux du pipeline.

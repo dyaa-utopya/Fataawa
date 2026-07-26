@@ -23,3 +23,6 @@ export function estCheminAdmin(pathname: string): boolean {
  * n'est là que pour l'annoncer avant l'envoi.
  */
 export const LIMITE_VOCALISATION = 4000;
+
+/** Pages téléversées d'un coup. Au-delà, le texte extrait dépasserait la borne. */
+export const PAGES_MAX = 3;

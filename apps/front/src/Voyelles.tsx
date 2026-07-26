@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ApiError, vocaliser } from './api.js';
+import { ApiError, lirePage, vocaliser } from './api.js';
 import type { DICT } from './i18n.js';
-import { LIMITE_VOCALISATION } from './config.js';
+import { LIMITE_VOCALISATION, PAGES_MAX } from './config.js';
 
 type T = (typeof DICT)['fr'];
 
@@ -31,8 +31,39 @@ export default function Voyelles({ t }: { t: T }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [copie, setCopie] = useState(false);
 
+  const [lecture, setLecture] = useState('');
+
   const trop = entree.length > LIMITE_VOCALISATION;
-  const pret = entree.trim().length >= 2 && !trop && !enCours;
+  const pret = entree.trim().length >= 2 && !trop && !enCours && lecture === '';
+
+  /**
+   * Téléverser remplit le champ, il ne vocalise pas directement : l'OCR se
+   * trompe parfois, et l'enchaîner sans relecture enfermerait l'erreur dans le
+   * résultat. Le texte extrait revient donc là où il peut être corrigé.
+   */
+  async function lireFichiers(files: FileList | null) {
+    const liste = Array.from(files ?? []).slice(0, PAGES_MAX);
+    if (liste.length === 0) return;
+    setErreur(null);
+    setResultat(null);
+    const morceaux: string[] = [];
+    try {
+      for (const [i, f] of liste.entries()) {
+        setLecture(`${i + 1}/${liste.length}`);
+        morceaux.push(await lirePage(f));
+      }
+      setEntree((prev) => [prev.trim(), ...morceaux].filter((s) => s !== '').join('\n\n'));
+    } catch (err) {
+      const s = err instanceof ApiError ? err.status : 0;
+      if (s === 415) setErreur(t.vowelsBadType);
+      else if (s === 413) setErreur(t.vowelsTooLong);
+      else if (s === 422) setErreur(t.vowelsNoText);
+      else if (s === 429) setErreur(t.rateLimited);
+      else setErreur(t.errorNetwork);
+    } finally {
+      setLecture('');
+    }
+  }
 
   async function lancer() {
     if (!pret) return;
@@ -55,6 +86,26 @@ export default function Voyelles({ t }: { t: T }) {
       <div className="rounded-xl border border-stone-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-stone-800">{t.vowelsTitle}</h2>
         <p className="mt-1 text-sm text-stone-500">{t.vowelsHint}</p>
+
+        {/* Deux entrées pour la même chose : téléverser la page, ou coller le
+            texte. Le téléversement remplit simplement le champ ci-dessous. */}
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/tiff,application/pdf"
+          multiple
+          disabled={lecture !== ''}
+          onChange={(e) => {
+            void lireFichiers(e.target.files);
+            e.target.value = '';
+          }}
+          className="mt-3 block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-emerald-700 file:px-4 file:py-2 file:text-white disabled:opacity-40"
+        />
+        <p className="mt-1 text-xs text-stone-400">{t.vowelsUploadHint}</p>
+        {lecture !== '' && (
+          <p className="mt-2 text-sm text-stone-500">
+            {t.vowelsReading} {lecture}
+          </p>
+        )}
 
         <textarea
           value={entree}
