@@ -24,6 +24,12 @@ interface Ligne {
 const CONCURRENCE = 4;
 /** Les URLs signées sont demandées par tranches, pas 500 d'un coup. */
 const TAILLE_TRANCHE = 100;
+/**
+ * Marque le choix « nouveau livre ». Une barre oblique ne peut apparaître dans
+ * aucun identifiant de recueil (sanitizeIdPart la remplace), la valeur est donc
+ * sûrement distincte de tout livre existant.
+ */
+const NOUVEAU_LIVRE = '/nouveau';
 
 function formatTaille(octets: number): string {
   const mo = octets / (1024 * 1024);
@@ -45,7 +51,15 @@ export default function Upload({
   utilisateur: User;
 }) {
   const [livres, setLivres] = useState<LivreResume[]>([]);
-  const [livre, setLivre] = useState('');
+  /**
+   * Recueil visé : l'identifiant d'un livre existant, ou NOUVEAU_LIVRE. On
+   * envoie l'identifiant et non le titre, car le serveur en dérive l'ID du
+   * livre — un titre retouché depuis l'import créerait un second recueil au
+   * lieu d'alimenter celui qu'on a désigné.
+   */
+  const [choix, setChoix] = useState('');
+  const [titreNouveau, setTitreNouveau] = useState('');
+  const livre = choix === NOUVEAU_LIVRE ? titreNouveau : choix;
   /** Deux voies au choix : le PDF entier, ou les images page par page. */
   const [mode, setMode] = useState<'pdf' | 'images'>('pdf');
   const [pdf, setPdf] = useState<File | null>(null);
@@ -84,6 +98,20 @@ export default function Upload({
     if (err instanceof ApiError && err.status === 403) return t.notAllowed;
     if (err instanceof ApiError && err.status === 401) return t.sessionExpired;
     return t.errorNetwork;
+  }
+
+  /**
+   * Changer de recueil invalide tout ce qui en dépend : une vérification porte
+   * sur un livre précis, et la laisser à l'écran ferait lire les doublons d'un
+   * recueil comme ceux d'un autre.
+   */
+  function choisirLivre(valeur: string) {
+    setChoix(valeur);
+    setVerif(null);
+    setLignes([]);
+    setPdf(null);
+    setMessage(null);
+    setErreur(null);
   }
 
   function choisirFichiers(files: FileList | null) {
@@ -210,20 +238,74 @@ export default function Upload({
   return (
         <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
           <div className="rounded-xl border border-stone-200 bg-white p-4">
-            <label className="block text-sm font-medium text-stone-700">{t.bookName}</label>
-            <input
-              list="livres-existants"
-              value={livre}
-              onChange={(e) => setLivre(e.target.value)}
-              placeholder={t.bookPlaceholder}
-              dir="auto"
-              className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 outline-none focus:border-emerald-500"
-            />
-            <datalist id="livres-existants">
-              {livres.map((l) => (
-                <option key={l.id} value={l.titre} />
-              ))}
-            </datalist>
+            <div className="flex items-baseline justify-between gap-3">
+              <label className="block text-sm font-medium text-stone-700">{t.bookName}</label>
+              {livres.length > 0 && (
+                <span className="text-xs text-stone-400">{t.autoRefresh}</span>
+              )}
+            </div>
+
+            {/* Une liste à choisir, non un champ à complétion : le datalist ne
+                s'ouvre pas sur téléphone, il ne propose qu'au fil de la frappe —
+                il fallait donc connaître le titre du recueil par cœur. La liste
+                porte en même temps l'avancement de chaque livre, ce qui évite de
+                l'afficher deux fois sur la page. */}
+            <div className="mt-2 max-h-72 space-y-1 overflow-y-auto rounded-lg border border-stone-200 p-1">
+              <button
+                onClick={() => choisirLivre(NOUVEAU_LIVRE)}
+                className={`w-full rounded-md px-2.5 py-2 text-start text-sm font-medium ${
+                  choix === NOUVEAU_LIVRE
+                    ? 'bg-emerald-700 text-white'
+                    : 'text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                + {t.bookNew}
+              </button>
+              {livres.map((l) => {
+                const pct = l.nbPages === 0 ? 0 : Math.round((l.nbPagesOcr / l.nbPages) * 100);
+                const actif = choix === l.id;
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => choisirLivre(l.id)}
+                    className={`block w-full rounded-md px-2.5 py-2 text-start ${
+                      actif ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    {/* pas de troncature : ces titres ne diffèrent que par le
+                        numéro final, qui serait le premier coupé */}
+                    <span className="block break-words text-sm" dir="auto">
+                      {l.titre}
+                    </span>
+                    <span
+                      className={`mt-0.5 block text-xs ${actif ? 'text-emerald-100' : 'text-stone-400'}`}
+                    >
+                      {l.nbPagesOcr}/{l.nbPages} {t.page} · {l.nbFatwas} {t.fatwa}
+                    </span>
+                    <span
+                      className={`mt-1 block h-1 overflow-hidden rounded-full ${actif ? 'bg-emerald-900/40' : 'bg-stone-200'}`}
+                    >
+                      <span
+                        className={`block h-full ${actif ? 'bg-white' : 'bg-emerald-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {choix === NOUVEAU_LIVRE && (
+              <input
+                value={titreNouveau}
+                onChange={(e) => setTitreNouveau(e.target.value)}
+                placeholder={t.bookPlaceholder}
+                dir="auto"
+                autoFocus
+                className="mt-2 w-full rounded-md border border-stone-300 px-3 py-2 outline-none focus:border-emerald-500"
+              />
+            )}
+
             {/* choix de la voie d'envoi */}
             <div className="mt-4 flex overflow-hidden rounded-lg border border-stone-300">
               {(['pdf', 'images'] as const).map((m) => (
@@ -386,34 +468,6 @@ export default function Upload({
             </div>
           )}
 
-          {livres.length > 0 && (
-            <div className="rounded-xl border border-stone-200 bg-white p-4">
-              <h3 className="mb-2 flex items-baseline justify-between text-sm font-medium text-stone-700">
-                {t.booksInProgress}
-                <span className="text-xs font-normal text-stone-400">{t.autoRefresh}</span>
-              </h3>
-              <ul className="space-y-2 text-sm text-stone-600">
-                {livres.map((l) => {
-                  const pct = l.nbPages === 0 ? 0 : Math.round((l.nbPagesOcr / l.nbPages) * 100);
-                  return (
-                    <li key={l.id}>
-                      <div className="flex justify-between gap-3">
-                        <span className="truncate" dir="auto">
-                          {l.titre}
-                        </span>
-                        <span className="shrink-0 text-xs text-stone-400">
-                          {l.nbPagesOcr}/{l.nbPages} {t.page} · {l.nbFatwas} {t.fatwa}
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-stone-200">
-                        <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
         </div>
   );
 }

@@ -31,11 +31,11 @@ export interface Dict {
   backToChat: string;
   bookName: string;
   bookPlaceholder: string;
+  bookNew: string;
   fileNameHint: string;
   uploadStart: string;
   uploading: string;
   uploadDone: string;
-  booksInProgress: string;
   filesSelected: string;
   checking: string;
   pagesDetected: string;
@@ -127,12 +127,12 @@ export const DICT: Record<Lang, Dict> = {
     uploadTitle: 'Ajout de fatwas',
     backToChat: 'Retour à la recherche',
     bookName: 'Livre (recueil)',
-    bookPlaceholder: 'Nom du recueil, existant ou nouveau',
+    bookPlaceholder: 'Titre du nouveau recueil',
+    bookNew: 'Nouveau livre',
     fileNameHint: 'Le nom de chaque image doit contenir son numéro de page (ex. page_012.png).',
     uploadStart: 'Envoyer les pages',
     uploading: 'Envoi en cours…',
     uploadDone: 'Pages envoyées. Le traitement (OCR, structuration, indexation) a démarré ; les nouvelles fatwas apparaîtront dans la recherche au fur et à mesure.',
-    booksInProgress: 'Livres et avancement',
     filesSelected: 'images sélectionnées',
     checking: 'Vérification des noms de fichiers…',
     pagesDetected: 'Pages détectées :',
@@ -228,12 +228,12 @@ export const DICT: Record<Lang, Dict> = {
     uploadTitle: 'Add fatwas',
     backToChat: 'Back to search',
     bookName: 'Book (collection)',
-    bookPlaceholder: 'Collection name, existing or new',
+    bookPlaceholder: 'Title of the new collection',
+    bookNew: 'New book',
     fileNameHint: 'Each image file name must contain its page number (e.g. page_012.png).',
     uploadStart: 'Upload pages',
     uploading: 'Uploading…',
     uploadDone: 'Pages uploaded. Processing (OCR, structuring, indexing) has started; new fatwas will appear in search progressively.',
-    booksInProgress: 'Books and progress',
     filesSelected: 'images selected',
     checking: 'Checking file names…',
     pagesDetected: 'Detected pages:',
@@ -327,12 +327,12 @@ export const DICT: Record<Lang, Dict> = {
     uploadTitle: 'إضافة فتاوى',
     backToChat: 'رجوع إلى البحث',
     bookName: 'الكتاب (المجموعة)',
-    bookPlaceholder: 'اسم المجموعة، موجودة أو جديدة',
+    bookPlaceholder: 'عنوان المجموعة الجديدة',
+    bookNew: 'كتاب جديد',
     fileNameHint: 'يجب أن يحتوي اسم كل صورة على رقم الصفحة (مثال: page_012.png).',
     uploadStart: 'إرسال الصفحات',
     uploading: 'جارٍ الإرسال…',
     uploadDone: 'تم إرسال الصفحات. بدأت المعالجة (المسح الضوئي، التنظيم، الفهرسة)؛ ستظهر الفتاوى الجديدة في البحث تدريجياً.',
-    booksInProgress: 'الكتب والتقدّم',
     filesSelected: 'صورة محدّدة',
     checking: 'جارٍ التحقّق من أسماء الملفات…',
     pagesDetected: 'الصفحات المكتشفة:',
