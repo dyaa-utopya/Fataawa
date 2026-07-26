@@ -53,6 +53,41 @@ const CANDIDATS_PAR_MOT = 150;
 
 type Trouve = { id: string; data: FatwaStored };
 
+/**
+ * Ce qui a fait remonter un résultat. Extrait de la recherche pour être
+ * éprouvé seul : la classification est la partie qu'on lit à l'écran, et elle
+ * ne dépend d'aucun accès à la base.
+ */
+export function origineResultat(
+  id: string,
+  ids: {
+    exacts: ReadonlySet<string>;
+    lexicaux: ReadonlySet<string>;
+    semantiques: ReadonlySet<string>;
+  },
+): ResultatRecherche['origine'] {
+  if (ids.exacts.has(id)) return 'numero';
+  const l = ids.lexicaux.has(id);
+  const s = ids.semantiques.has(id);
+  return l && s ? 'mots+sens' : l ? 'mots' : 'sens';
+}
+
+/**
+ * Ordre final : le numéro exact devant — c'est une réponse, non une suggestion
+ * — puis la fusion des deux chemins, débarrassée de ce qui est déjà passé.
+ */
+export function ordonnerCandidats<T extends { id: string }>(
+  exacts: readonly T[],
+  lexicaux: readonly T[],
+  semantiques: readonly T[],
+): T[] {
+  const vus = new Set(exacts.map((t) => t.id));
+  const fusionnes = fusionnerRangs<T>([lexicaux, semantiques], (t) => t.id).filter(
+    (t) => !vus.has(t.id),
+  );
+  return [...exacts, ...fusionnes];
+}
+
 /** Fatwa portant exactement ce numéro. Réponse, non suggestion : elle passe devant. */
 async function parNumero(numero: string): Promise<Trouve[]> {
   const snap = await fatwasCol().where('numero_fatwa', '==', numero).limit(10).get();
@@ -148,21 +183,12 @@ export async function rechercher(
           .then((s) => s.docs.map((d) => ({ id: d.id, data: d.data() as FatwaStored }))),
   ]);
 
-  const idsLexicaux = new Set(lexicaux.map((t) => t.id));
-  const idsSemantiques = new Set(semantiques.map((t) => t.id));
-  const idsExacts = new Set(exacts.map((t) => t.id));
-  const origine = (id: string): ResultatRecherche['origine'] => {
-    if (idsExacts.has(id)) return 'numero';
-    const l = idsLexicaux.has(id);
-    const s = idsSemantiques.has(id);
-    return l && s ? 'mots+sens' : l ? 'mots' : 'sens';
+  const ids = {
+    exacts: new Set(exacts.map((t) => t.id)),
+    lexicaux: new Set(lexicaux.map((t) => t.id)),
+    semantiques: new Set(semantiques.map((t) => t.id)),
   };
-
-  // le numéro exact devant, puis la fusion des deux chemins
-  const fusionnes = fusionnerRangs<Trouve>([lexicaux, semantiques], (t) => t.id).filter(
-    (t) => !idsExacts.has(t.id),
-  );
-  const candidats = [...exacts, ...fusionnes];
+  const candidats = ordonnerCandidats(exacts, lexicaux, semantiques);
 
   logger.info(
     {
@@ -220,7 +246,7 @@ export async function rechercher(
       question: data.question_arabe ?? '',
       reponse: data.reponse_arabe ?? '',
       url_image: url,
-      origine: origine(f.id),
+      origine: origineResultat(f.id, ids),
     });
   }
   return { resultats };
