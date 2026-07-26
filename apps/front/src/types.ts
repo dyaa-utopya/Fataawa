@@ -1,7 +1,11 @@
-/** Ce qu'il faut pour ouvrir le scan d'une fatwa dans la visionneuse. */
+/** Ce qu'il faut pour ouvrir le scan d'une fatwa et le feuilleter. */
 export interface ScanRef {
   numero_fatwa: string;
   livre_titre: string;
+  livre_id: string;
+  /** Pages du livre occupées par la fatwa. */
+  pages: number[];
+  numero_page?: number | null;
   url_image: string | null;
 }
 

@@ -21,6 +21,7 @@ import {
   normaliseNumeroFatwa,
   normaliseSousQuestion,
   numerosFatwaCites,
+  pagesCouvertes,
   porteEnTeteFatwa,
   livreRef,
   logger,
@@ -360,11 +361,30 @@ export function structurerRouter(cfg: WorkerConfig): Router {
             } else {
               creations++;
             }
-            // la première fatwa complète porte les pages du fragment recousu
+            // Pages réellement occupées, mesurées sur le texte rendu : une fatwa
+            // déborde souvent sur la page suivante, et l'ignorer laissait le
+            // lecteur devant un scan coupé en bas de page.
+            const couvertes = pagesCouvertes(
+              fatwa.texteComplet,
+              [
+                { ref: pageSource, texte },
+                ...suivantesSnap.docs
+                  .map((d) => {
+                    const p = d.data() as PageDoc;
+                    return {
+                      ref: { numero: p.numero, pageId: d.id, gcsPath: p.gcsPath },
+                      texte: (p.texteOcr ?? '').trim(),
+                    };
+                  })
+                  .filter((c) => c.texte !== ''),
+              ],
+              pageSource,
+            );
+            // la première fatwa complète porte en plus les pages du fragment recousu
             const pages =
               fragment && i === 0
-                ? dedupPages([...fragmentPages, ...pagesFenetre])
-                : [pageSource];
+                ? dedupPages([...fragmentPages, ...couvertes])
+                : dedupPages(couvertes);
             batch.set(
               fatwaRef(id),
               {

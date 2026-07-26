@@ -87,6 +87,10 @@ export interface Dict {
   reportSamples: string;
   clearedIdle: string;
   clearedFull: string;
+  previousPage: string;
+  nextPage: string;
+  fatwaPages: string;
+  spansPages: string;
 }
 
 export const DICT: Record<Lang, Dict> = {
@@ -184,6 +188,10 @@ export const DICT: Record<Lang, Dict> = {
     reportSamples: 'Exemples',
     clearedIdle: 'Conversation effacée après 3 minutes sans activité.',
     clearedFull: 'Nouvelle conversation : la précédente atteignait 10 messages.',
+    previousPage: 'Page précédente',
+    nextPage: 'Page suivante',
+    fatwaPages: 'page',
+    spansPages: 'Cette fatwa occupe les pages',
   },
   en: {
     appTitle: 'Fataawa',
@@ -278,6 +286,10 @@ export const DICT: Record<Lang, Dict> = {
     reportSamples: 'Samples',
     clearedIdle: 'Conversation cleared after 3 minutes of inactivity.',
     clearedFull: 'New conversation: the previous one reached 10 messages.',
+    previousPage: 'Previous page',
+    nextPage: 'Next page',
+    fatwaPages: 'page',
+    spansPages: 'This fatwa spans pages',
   },
   ar: {
     appTitle: 'فتاوى',
@@ -368,5 +380,9 @@ export const DICT: Record<Lang, Dict> = {
     reportSamples: 'أمثلة',
     clearedIdle: 'حُذفت المحادثة بعد ثلاث دقائق من الخمول.',
     clearedFull: 'محادثة جديدة: بلغت السابقة عشر رسائل.',
+    previousPage: 'الصفحة السابقة',
+    nextPage: 'الصفحة التالية',
+    fatwaPages: 'صفحة',
+    spansPages: 'تمتد هذه الفتوى على الصفحات',
   },
 };

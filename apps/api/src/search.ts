@@ -26,6 +26,9 @@ export interface ResultatRecherche {
   sujet: string;
   sous_sujet: string;
   livre_titre: string;
+  livre_id: string;
+  /** Pages du livre occupées par la fatwa, pour pouvoir feuilleter le scan. */
+  pages: number[];
   /** Début du texte, pour l'aperçu dans la liste. */
   extrait: string;
   texte: string;
@@ -98,6 +101,8 @@ export async function rechercher(
       sujet: f.sujetPrincipal,
       sous_sujet: f.sousSujet,
       livre_titre: titres.get(f.livreId) ?? '',
+      livre_id: f.livreId,
+      pages: f.pages.map((p) => p.numero),
       extrait: f.texte.slice(0, 260),
       texte: f.texte,
       question: data.question_arabe ?? '',

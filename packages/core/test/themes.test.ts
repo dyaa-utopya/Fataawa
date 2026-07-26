@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SECTION_AUTRE, TAXONOMIE, blocTaxonomie, verifieThemes } from '../src/themes.js';
-import { estPageSommaire } from '../src/structuring.js';
+import { estPageSommaire, pagesCouvertes } from '../src/structuring.js';
 
 describe('taxonomie', () => {
   it('n’a ni chapitre ni section en double', () => {
@@ -108,5 +108,43 @@ describe('estPageSommaire — OCR emballé', () => {
       'س: ما حكم صلاة الجماعة؟ ج: صلاة الجماعة واجبة على الرجال القادرين. ' +
       'وقد ثبت عن النبي ﷺ أنه قال: «من سمع النداء فلم يأت فلا صلاة له». وبالله التوفيق.';
     expect(estPageSommaire(fatwa)).toBe(false);
+  });
+});
+
+describe('pagesCouvertes', () => {
+  // Cas réel : la fatwa 2677 question 14 du recueil 7 tient sur deux scans. Le
+  // texte enregistré était complet, mais une seule page était référencée — le
+  // lecteur voyait donc une réponse coupée en bas de feuille.
+  const fatwa =
+    'س١٤: إذا عطس أو تثاءب شخص في الصلاة فهل يحمد الله للعطاس ويستعيذ بالله من الشيطان للتثاؤب؟ ' +
+    'ج١٤: من عطس أو تثاءب في الصلاة يحمد الله للعطاس، ولا يستعيذ بالله من الشيطان لتثاؤبه، ' +
+    'لعدم ورود ذلك، ولا يجيب من شمته لعطاسه حال كونه في صلاته ولا يرد السلام على من سلم عليه ' +
+    'وهو في الصلاة إلا بالإشارة، لعموم ما ثبت من قوله: إن في الصلاة لشغلا. وبالله التوفيق.';
+  const CLOTURE = 'وبالله التوفيق وصلى الله على نبينا محمد وآله وصحبه وسلم.';
+
+  it('retient les pages dont le texte se retrouve dans la fatwa', () => {
+    const debut = fatwa.slice(0, 200);
+    const suite = fatwa.slice(200);
+    expect(
+      pagesCouvertes(
+        fatwa,
+        [
+          { ref: 30, texte: `${CLOTURE} نص sans rapport avec cette fatwa، عن موضوع آخر تماما، ${'ك'.repeat(300)}` },
+          { ref: 31, texte: debut },
+          { ref: 32, texte: suite },
+          { ref: 33, texte: `${CLOTURE} ${'ب'.repeat(400)}` },
+        ],
+        31,
+      ).sort((a, b) => a - b),
+    ).toEqual([31, 32]);
+  });
+
+  it('ne se laisse pas prendre à la formule de clôture, présente partout', () => {
+    // c'est ce piège qui rendait la fin de texte inutilisable comme empreinte
+    expect(pagesCouvertes(fatwa, [{ ref: 99, texte: `${CLOTURE} ${'س'.repeat(500)}` }], 1)).toEqual([1]);
+  });
+
+  it('garde toujours la page de départ, même sans recouvrement mesurable', () => {
+    expect(pagesCouvertes(fatwa, [{ ref: 7, texte: 'ocr illisible' }], 7)).toEqual([7]);
   });
 });

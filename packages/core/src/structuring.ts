@@ -322,6 +322,49 @@ export function estPageSommaire(texte: string): boolean {
 }
 
 /**
+ * Pages effectivement couvertes par une fatwa, mesurées et non devinées.
+ *
+ * Une fatwa déborde souvent sur la page suivante, et le savoir importe : c'est
+ * ce qui permet de montrer au lecteur la suite du scan au lieu de le laisser
+ * devant une réponse coupée en bas de page.
+ *
+ * On ne peut pas se fier à la fin du texte comme empreinte : « وبالله التوفيق
+ * وصلى الله على نبينا محمد » clôt presque toutes les fatwas et figure donc sur
+ * presque toutes les pages. On mesure au contraire le RECOUVREMENT — la part des
+ * tranches de la page qui se retrouvent dans la fatwa. Relevé sur un cas réel
+ * (fatwa 2677, question 14) : 33 % et 18 % sur les deux pages qu'elle occupe,
+ * 0 % sur les quatre pages voisines. Le seuil est posé à 15 %.
+ */
+const TAILLE_TRANCHE = 60;
+const RECOUVREMENT_MINIMAL = 0.15;
+
+export function recouvrementPage(textePage: string, texteFatwa: string): number {
+  const p = normaliserPourComparaison(textePage);
+  const f = normaliserPourComparaison(texteFatwa);
+  if (p.length < TAILLE_TRANCHE) return 0;
+  let total = 0;
+  let trouvees = 0;
+  for (let i = 0; i + TAILLE_TRANCHE <= p.length; i += TAILLE_TRANCHE) {
+    total++;
+    if (f.includes(p.slice(i, i + TAILLE_TRANCHE))) trouvees++;
+  }
+  return total === 0 ? 0 : trouvees / total;
+}
+
+export function pagesCouvertes<T>(
+  texteFatwa: string,
+  candidates: Array<{ ref: T; texte: string }>,
+  depart: T,
+): T[] {
+  const retenues = candidates
+    .filter((c) => recouvrementPage(c.texte, texteFatwa) >= RECOUVREMENT_MINIMAL)
+    .map((c) => c.ref);
+  // la page de départ est acquise : c'est là que la fatwa commence, même si
+  // l'OCR y est trop pauvre pour atteindre le seuil
+  return retenues.includes(depart) ? retenues : [depart, ...retenues];
+}
+
+/**
  * Forme comparable d'un texte arabe : diacritiques, tatweel, ponctuation et
  * espaces retirés. Sert à confronter ce que le modèle a restitué au texte OCR,
  * qui diffèrent toujours un peu dans la ponctuation et les voyelles.

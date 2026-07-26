@@ -47,8 +47,11 @@ export interface AskSourceOut {
   numero_fatwa: string;
   citation_arabe: string;
   livre_titre: string;
+  livre_id: string;
   numero_page: number | null;
   url_image: string | null;
+  /** Pages du livre occupées par la fatwa : le lecteur doit pouvoir les feuilleter. */
+  pages: number[];
 }
 
 export interface AskAnswerOut {
@@ -296,6 +299,8 @@ QUESTION (langue de réponse : ${req.langue}) : ${questionRecherche}`,
         numero_fatwa: libelle,
         citation_arabe: u.citationArabe,
         livre_titre: titres.get(u.source.livreId) ?? '',
+        livre_id: u.source.livreId,
+        pages: u.source.pages.map((p) => p.numero),
         numero_page: page?.numero ?? u.source.numeroPage,
         url_image: await urlImage(cfg, u.source),
       };

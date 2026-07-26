@@ -72,10 +72,12 @@ v1.post(
 );
 
 // URL signée fraîche pour une page scannée (les url_image expirent au bout d'1 h)
+// Pas d'attestation ici : cette route est appelée par une balise <img>, qui ne
+// sait pas porter d'en-tête. Elle ne rend qu'une redirection vers une URL signée
+// à durée de vie courte, et reste soumise au débit par IP.
 v1.get(
   '/images/:livreId/:pageId',
   limiterMw,
-  attestation,
   asyncHandler(async (req, res) => {
     const { livreId, pageId } = req.params as { livreId: string; pageId: string };
     const snap = await pageRef(livreId, pageId).get();
