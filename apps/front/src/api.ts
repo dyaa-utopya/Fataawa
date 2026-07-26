@@ -22,10 +22,14 @@ export class ApiError extends Error {
  * c'est le serveur qui tranche.
  */
 async function entetesPubliques(): Promise<Record<string, string>> {
-  const attestation = await jetonAppCheck();
+  const { jeton: attestation, echec } = await jetonAppCheck();
   return {
     'content-type': 'application/json',
-    ...(attestation === null ? {} : { 'X-Firebase-AppCheck': attestation }),
+    ...(attestation === null
+      ? // en-tête de diagnostic, jamais une autorisation : il dit seulement
+        // POURQUOI l'attestation manque, pour que le journal le montre
+        { 'X-AppCheck-Diag': echec || 'inconnu' }
+      : { 'X-Firebase-AppCheck': attestation }),
   };
 }
 
@@ -33,7 +37,7 @@ async function entetesPubliques(): Promise<Record<string, string>> {
 async function appelAdmin<T>(chemin: string, body?: unknown): Promise<T> {
   const token = await jeton();
   if (token === null) throw new ApiError(401);
-  const attestation = await jetonAppCheck();
+  const { jeton: attestation } = await jetonAppCheck();
   const res = await fetch(`/api/v1/admin${chemin}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {

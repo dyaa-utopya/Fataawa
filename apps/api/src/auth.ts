@@ -105,25 +105,44 @@ export function requireUser(cfg: AuthConfig) {
 export function requireAppCheck(cfg: AppCheckConfig) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const token = req.header('x-firebase-appcheck');
+    const mode = cfg.enforce ? 'application' : 'observation';
+    // Diagnostic envoyé par le client quand il n'a pas pu attester. Purement
+    // informatif : il n'autorise rien, il explique seulement l'absence de jeton.
+    const diag = (req.header('x-appcheck-diag') ?? '').slice(0, 120);
+
+    /** Une ligne par requête publique : c'est la trace qui rend le flux auditable. */
+    const tracer = (verdict: string, raison?: string) =>
+      logger.info(
+        {
+          fluxPublic: true,
+          route: req.path,
+          verdict,
+          mode,
+          ...(raison === undefined ? {} : { raison }),
+          ...(diag === '' ? {} : { diagClient: diag }),
+        },
+        `flux public : ${req.path} → ${verdict}`,
+      );
+
     if (token === undefined || token === '') {
+      tracer('SANS_ATTESTATION');
       if (cfg.enforce) {
         res.status(401).json({ erreur: 'attestation requise' });
         return;
       }
-      logger.info({ route: req.path }, 'App Check : appel sans attestation (mode observation)');
       next();
       return;
     }
     try {
       await getAppCheck(adminApp()).verifyToken(token);
+      tracer('ATTESTEE');
       next();
     } catch (err) {
+      tracer('ATTESTATION_INVALIDE', err instanceof Error ? err.message.slice(0, 160) : String(err));
       if (cfg.enforce) {
-        logger.warn({ route: req.path, err }, 'App Check : attestation refusée');
         res.status(401).json({ erreur: 'attestation invalide' });
         return;
       }
-      logger.warn({ route: req.path, err }, 'App Check : attestation invalide (mode observation)');
       next();
     }
   };

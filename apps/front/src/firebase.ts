@@ -29,10 +29,18 @@ export const app: FirebaseApp = initializeApp(firebaseConfig);
  */
 const SITE_KEY = '6LcP2WUtAAAAADV8FfaB5YIHJ789Q5N5bmAWKYED';
 
-const appCheck = initializeAppCheck(app, {
-  provider: new ReCaptchaEnterpriseProvider(SITE_KEY),
-  isTokenAutoRefreshEnabled: true,
-});
+// L'initialisation elle-même peut échouer (script reCAPTCHA bloqué, domaine non
+// déclaré) : on ne laisse pas cette exception emporter le chargement du site.
+const appCheck = (() => {
+  try {
+    return initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch {
+    return null;
+  }
+})();
 
 /**
  * Jeton d'attestation à joindre aux appels API. Ne fait jamais échouer la
@@ -40,11 +48,25 @@ const appCheck = initializeAppCheck(app, {
  * l'appel part sans jeton et c'est le serveur qui décide s'il l'accepte. Rendre
  * le site inutilisable parce que reCAPTCHA n'a pas répondu serait pire que le
  * risque qu'App Check couvre.
+ *
+ * En cas d'échec, la RAISON est renvoyée pour être joignée à l'appel et
+ * journalisée côté serveur. Sans elle, un site qui n'atteste plus est
+ * indiscernable d'un site qui n'a jamais essayé — c'est ce qui rend une panne
+ * d'attestation impossible à diagnostiquer.
  */
-export async function jetonAppCheck(): Promise<string | null> {
+export interface Attestation {
+  jeton: string | null;
+  /** Vide si tout va bien ; sinon le code d'erreur, à des fins de diagnostic. */
+  echec: string;
+}
+
+export async function jetonAppCheck(): Promise<Attestation> {
+  if (appCheck === null) return { jeton: null, echec: 'initialisation' };
   try {
-    return (await getToken(appCheck, false)).token;
-  } catch {
-    return null;
+    return { jeton: (await getToken(appCheck, false)).token, echec: '' };
+  } catch (err) {
+    const code = (err as { code?: string }).code ?? '';
+    const message = err instanceof Error ? err.message : String(err);
+    return { jeton: null, echec: (code || message).slice(0, 120) };
   }
 }
