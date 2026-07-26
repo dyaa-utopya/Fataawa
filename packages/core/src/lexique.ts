@@ -145,9 +145,16 @@ const LONGUEUR_MIN = 2;
  * « الله » réduit à « له » serait un contresens, d'où le plancher.
  */
 const RESTE_MIN_SANS_ARTICLE = 3;
-/** Mots indexés par fatwa. Les plus longues sont tronquées ; elles restent
- *  atteignables par la recherche sémantique, qui lit tout le texte. */
-export const PLAFOND_JETONS_TEXTE = 400;
+/**
+ * Mots indexés par fatwa.
+ *
+ * Mesuré sur les 3 981 fatwas : la plus longue en compte 788 (7 115
+ * caractères). À 800, aucune n'est tronquée, pour 1 667 entrées d'index de plus
+ * que sous un plafond de 400 — 0,4 % de 386 000. Le plafond ne sert donc plus
+ * qu'à ce pour quoi il est bon : borner un emballement d'OCR, du genre de la
+ * page de 131 072 caractères qui avait bloqué un recueil.
+ */
+export const PLAFOND_JETONS_TEXTE = 800;
 /** Mots retenus d'une requête : au-delà, ce n'est plus une recherche par mots. */
 export const PLAFOND_JETONS_REQUETE = 6;
 
