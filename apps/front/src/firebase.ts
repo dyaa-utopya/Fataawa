@@ -6,9 +6,16 @@ import { ReCaptchaEnterpriseProvider, getToken, initializeAppCheck } from 'fireb
  * elle n'autorise rien par elle-même). L'accès réel est verrouillé par les
  * domaines autorisés côté Firebase Auth et par l'allowlist d'adresses
  * vérifiée par l'API à chaque requête.
+ *
+ * Ces quatre valeurs ne se devinent pas : elles viennent de
+ * `firebase.googleapis.com/v1beta1/projects/…/webApps/…/config`. Une clé
+ * plausible mais fausse ne provoque aucune erreur au build — elle fait
+ * seulement échouer chaque appel à Google avec « API key not valid », ce qui
+ * ressemble à une panne réseau. Le déploiement les compare donc à la réponse de
+ * Firebase et refuse de publier un bundle qui ne les porte pas (`step_hosting`).
  */
 const firebaseConfig = {
-  apiKey: 'AIzaSyBTckAyYjcJ0FDLg3AeC0dJnrIcQrGCX5Y',
+  apiKey: 'AIzaSyBTckAyYjhFWglZRkytX1saufGjewn0F2Y',
   authDomain: 'looker-studio-458310.firebaseapp.com',
   projectId: 'looker-studio-458310',
   appId: '1:1043287255633:web:881d8cda8fa5e3da8aa670',

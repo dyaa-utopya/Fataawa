@@ -775,6 +775,53 @@ def step_reembed(images: dict[str, str]) -> None:
     raise RuntimeError("ré-embedding : délai dépassé")
 
 
+def verifier_cles_front(dist: str) -> None:
+    """Refuse un bundle qui ne porte pas les vraies clés publiques du projet.
+
+    La configuration web Firebase et la clé de site reCAPTCHA sont écrites en
+    clair dans le front. Une valeur plausible mais fausse ne casse ni le
+    typage ni le build : elle fait échouer chaque appel à Google avec « API key
+    not valid », ce qui à l'écran ressemble à une panne réseau. C'est
+    exactement ce qui a rendu la connexion Google impossible jusqu'au 26/07.
+
+    On compare donc l'artefact, pas la source : peu importe le chemin qu'a pris
+    la valeur, le JavaScript livré doit contenir celle que Google reconnaît.
+    """
+    js = ""
+    for root, _dirs, names in os.walk(dist):
+        for n in names:
+            if n.endswith(".js"):
+                with open(os.path.join(root, n), encoding="utf-8", errors="replace") as fh:
+                    js += fh.read()
+
+    apps = req("GET", f"https://firebase.googleapis.com/v1beta1/projects/{PROJECT}/webApps")
+    attendus = {}
+    for a in apps.get("apps", []):
+        cfg = req("GET", f"https://firebase.googleapis.com/v1beta1/{a['name']}/config")
+        attendus[cfg["apiKey"]] = cfg
+    if not attendus:
+        raise SystemExit("Aucune application web Firebase dans le projet — front non déployable.")
+    if not any(k in js for k in attendus):
+        cfg = next(iter(attendus.values()))
+        raise SystemExit(
+            "Le bundle ne contient aucune clé API Firebase valide pour ce projet.\n"
+            "  Corriger apps/front/src/firebase.ts avec les valeurs que Firebase renvoie :\n"
+            f"    apiKey     : {cfg['apiKey']}\n"
+            f"    authDomain : {cfg.get('authDomain')}\n"
+            f"    projectId  : {cfg.get('projectId')}\n"
+            f"    appId      : {cfg.get('appId')}"
+        )
+
+    keys = req("GET", f"https://recaptchaenterprise.googleapis.com/v1/projects/{PROJECT}/keys")
+    sites = [k["name"].split("/")[-1] for k in keys.get("keys", [])]
+    if sites and not any(s in js for s in sites):
+        raise SystemExit(
+            "Le bundle ne contient aucune clé de site reCAPTCHA de ce projet — App Check "
+            "n'attesterait jamais.\n  Clés disponibles : " + ", ".join(sites)
+        )
+    log("clés publiques du front vérifiées auprès de Firebase")
+
+
 def step_hosting() -> None:
     log("Front → Firebase Hosting")
     with open(os.path.join(REPO_ROOT, "firebase.json")) as f:
@@ -784,6 +831,7 @@ def step_hosting() -> None:
     subprocess.run(
         ["npm", "run", "-w", "@fataawa/front", "build"], cwd=REPO_ROOT, check=True
     )
+    verifier_cles_front(os.path.join(REPO_ROOT, "apps/front/dist"))
 
     base = "https://firebasehosting.googleapis.com/v1beta1"
     if exists(f"{base}/projects/{PROJECT}/sites/{site}") is None:

@@ -365,12 +365,30 @@ export function adminRouter(cfg: ApiConfig, auth: AuthConfig): Router {
           r.total++;
           total++;
           const manques: string[] = [];
-          if (f.numero === '') (r.sansNumero++, manques.push('numéro'));
-          if (f.sujetPrincipal === '') (r.sansThemeN1++, manques.push('thème 1'));
-          if (f.sousSujet === '') (r.sansThemeN2++, manques.push('thème 2'));
-          if (f.themeN3 === '') (r.sansThemeN3++, manques.push('thème 3'));
-          if ((data.question_arabe ?? '') === '') (r.sansQuestion++, manques.push('question'));
-          if ((data.reponse_arabe ?? '') === '') (r.sansReponse++, manques.push('réponse'));
+          if (f.numero === '') {
+            r.sansNumero++;
+            manques.push('numéro');
+          }
+          if (f.sujetPrincipal === '') {
+            r.sansThemeN1++;
+            manques.push('thème 1');
+          }
+          if (f.sousSujet === '') {
+            r.sansThemeN2++;
+            manques.push('thème 2');
+          }
+          if (f.themeN3 === '') {
+            r.sansThemeN3++;
+            manques.push('thème 3');
+          }
+          if ((data.question_arabe ?? '') === '') {
+            r.sansQuestion++;
+            manques.push('question');
+          }
+          if ((data.reponse_arabe ?? '') === '') {
+            r.sansReponse++;
+            manques.push('réponse');
+          }
           parLivre.set(livreId, r);
           if (manques.length > 0 && exemples.length < 40) {
             exemples.push({

@@ -289,17 +289,6 @@ export function structurerRouter(cfg: WorkerConfig): Router {
           };
           const fragmentPages = fragment?.pages ?? [];
 
-          // pages couvertes par la fenêtre : une fatwa peut s'étendre sur le contexte
-          const pagesFenetre: PageSourceRef[] = [
-            pageSource,
-            ...suivantesSnap.docs
-              .filter((d) => contexte.some((c) => c.numero === (d.data() as PageDoc).numero))
-              .map((d) => {
-                const p = d.data() as PageDoc;
-                return { numero: p.numero, pageId: d.id, gcsPath: p.gcsPath };
-              }),
-          ];
-
           const batch = db().batch();
           const aEmbedder: string[] = [];
           // La même fatwa peut être extraite deux fois (chevauchement de

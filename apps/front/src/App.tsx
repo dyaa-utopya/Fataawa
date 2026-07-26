@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import Admin from './Admin.js';
 import { ApiError, ask } from './api.js';
-import { observerUtilisateur } from './auth.js';
+import { observerUtilisateur, retourRedirection } from './auth.js';
 import { estCheminAdmin } from './config.js';
 import { DICT, type Lang } from './i18n.js';
 import PageViewer from './PageViewer.js';
@@ -78,6 +78,8 @@ export default function App() {
   /** Affiché une fois, quand la conversation vient d'être effacée d'elle-même. */
   const [effacee, setEffacee] = useState<'inactivite' | 'plein' | null>(null);
   const [utilisateur, setUtilisateur] = useState<User | null>(null);
+  /** Code d'erreur d'une connexion Google, y compris revenue par redirection. */
+  const [echecConnexion, setEchecConnexion] = useState('');
   // deux usages distincts qui cohabitent : poser une question, ou fouiller
   // directement le corpus. L'administration, elle, vit sur une adresse à part
   // qu'aucun lien ne donne — d'où la lecture de l'URL plutôt qu'un bouton.
@@ -93,6 +95,14 @@ export default function App() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => observerUtilisateur(setUtilisateur), []);
+
+  // Une connexion partie en redirection revient ici : sans cette reprise, un
+  // retour en échec laisserait l'écran de connexion silencieux.
+  useEffect(() => {
+    void retourRedirection().then((code) => {
+      if (code !== '') setEchecConnexion(code);
+    });
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -188,6 +198,8 @@ export default function App() {
       <Admin
         t={t}
         utilisateur={utilisateur}
+        echec={echecConnexion}
+        onEchec={setEchecConnexion}
         onQuitter={() => {
           window.history.pushState({}, '', '/');
           setAdmin(false);

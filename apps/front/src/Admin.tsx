@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
-import { connexionGoogle, deconnexion } from './auth.js';
+import { codeErreur, connexionGoogle, deconnexion } from './auth.js';
 import type { DICT } from './i18n.js';
 import Rapport from './Rapport.js';
 import Themes from './Themes.js';
@@ -19,14 +19,18 @@ type Section = 'ajout' | 'themes' | 'rapport';
 export default function Admin({
   t,
   utilisateur,
+  echec,
+  onEchec,
   onQuitter,
 }: {
   t: (typeof DICT)['fr'];
   utilisateur: User | null;
+  /** Code d'erreur d'une tentative précédente, revenue par redirection. */
+  echec: string;
+  onEchec: (code: string) => void;
   onQuitter: () => void;
 }) {
   const [section, setSection] = useState<Section>('ajout');
-  const [erreur, setErreur] = useState<string | null>(null);
 
   if (!utilisateur) {
     return (
@@ -35,7 +39,10 @@ export default function Admin({
           <h2 className="text-lg font-semibold text-stone-800">{t.adminTitle}</h2>
           <p className="mt-2 text-sm text-stone-500">{t.signInHint}</p>
           <button
-            onClick={() => void connexionGoogle().catch(() => setErreur(t.errorNetwork))}
+            onClick={() => {
+              onEchec('');
+              void connexionGoogle().catch((err: unknown) => onEchec(codeErreur(err)));
+            }}
             className="mt-4 w-full rounded-full bg-emerald-700 px-5 py-2.5 font-medium text-white hover:bg-emerald-800"
           >
             {t.signIn}
@@ -43,7 +50,17 @@ export default function Admin({
           <button onClick={onQuitter} className="mt-3 w-full text-sm text-stone-500 underline">
             {t.backToChat}
           </button>
-          {erreur !== null && <p className="mt-3 text-sm text-red-600">{erreur}</p>}
+          {/* Le code brut compte autant que le message : c'est lui qui distingue
+              une fenêtre bloquée d'une clé refusée. */}
+          {echec !== '' && (
+            <p className="mt-3 text-sm text-red-600">
+              {t.signInFailed}
+              <br />
+              <code dir="ltr" className="mt-1 inline-block break-all text-xs text-red-500">
+                {echec}
+              </code>
+            </p>
+          )}
         </div>
       </div>
     );
