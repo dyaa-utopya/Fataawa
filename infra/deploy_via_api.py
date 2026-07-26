@@ -137,6 +137,8 @@ def step_apis() -> None:
         "secretmanager.googleapis.com", "artifactregistry.googleapis.com",
         "cloudbuild.googleapis.com", "iamcredentials.googleapis.com",
         "firebasehosting.googleapis.com",
+        "firebaseappcheck.googleapis.com", "recaptchaenterprise.googleapis.com",
+        "firebase.googleapis.com",
     ]
     op = req(
         "POST",
@@ -194,6 +196,14 @@ def step_iam() -> None:
         ("roles/artifactregistry.writer", f"serviceAccount:{num}@cloudbuild.gserviceaccount.com"),
         ("roles/artifactregistry.writer", f"serviceAccount:{num}-compute@developer.gserviceaccount.com"),
         ("roles/logging.logWriter", f"serviceAccount:{num}-compute@developer.gserviceaccount.com"),
+        # App Check doit pouvoir créer des assessments avec notre clé reCAPTCHA
+        # Enterprise. Sans ce rôle, l'échange d'attestation est refusé et le
+        # navigateur se met en attente sur un « appCheck/initial-throttle » qui
+        # ne dit rien de sa cause — deux heures perdues à le trouver.
+        ("roles/recaptchaenterprise.agent",
+         f"serviceAccount:service-{num}@gcp-sa-firebaseappcheck.iam.gserviceaccount.com"),
+        # verifyToken() résout le numéro de projet via l'API de gestion Firebase
+        ("roles/firebase.viewer", f"serviceAccount:{SA_API}"),
         ("roles/storage.objectViewer", f"serviceAccount:{num}-compute@developer.gserviceaccount.com"),
     ]
     if _merge_bindings(policy, wanted):
